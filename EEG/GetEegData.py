@@ -1,0 +1,111 @@
+from EDF.EdfAnalyzer import EdfAnalyzer
+import numpy as np
+import os
+import pyedflib
+from General.HelperFunctions import getPathsFromSessionFolder, particiapnt_to_char, GetSessions
+from General.PlotFunctions import plotChunkData, savePlot
+from sklearn.decomposition import FastICA, PCA
+from picard import picard
+import json
+from EDF.PlotHeatmap import get_heatmap
+from tqdm import tqdm
+
+A=0
+B=1
+
+def get_edf_file_path_properties(data_path, session, particiapnt):
+    # if you're working with the BT file, add to the function the parameter : edf_type="bt"
+    return getPathsFromSessionFolder(os.path.join(data_path, session))[particiapnt]
+
+def chunks_to_json(chunks, freq):
+    out_dict = {}
+    for key in chunks:
+        out_dict[key] = {"start": int(chunks[key].Start.Time*freq),
+                          "end": int(chunks[key].End.Time*freq)}
+    return json.dumps(out_dict)
+
+def write_string_to_file(filename, string):
+    with open(filename, "w") as f:
+        f.write(string)
+
+def get_callibration_ticks(chunks, freq):
+    callibration = ["smile__{}", "angry__{}", "blink__{}"]
+    ticks = []
+    for c in callibration:
+        for i in range(0,3):
+            chunk = chunks[str.format(c,i)]
+            ticks += [int(chunk.Start.Time), int(chunk.End.Time)]
+    start = ticks[0]
+    end = ticks[-1]
+    ticks = [int(t-start) for t in ticks]
+    return ticks, start, end
+
+def get_int_list_input_from_user():
+    return [int(x) for x in input("enter components to remove, press enter when finished: ").split()]
+
+def get_two_argmax_items_from_each_col(matrix):
+    argsorted_by_col = np.argsort(matrix, axis=0)
+    return [(argsorted_by_col[-2, i], argsorted_by_col[-1,i]) for i in range(16)]
+
+
+def w_to_components_titles(w):
+    abs_inv_w = np.absolute(np.linalg.inv(w))
+    most_contribute_electrodes = np.argmax(abs_inv_w, axis=0)[::-1]
+    return [f"comp_{i}_elec_{most_contribute_electrodes[i]}" for i in range(len(most_contribute_electrodes))]
+
+def get_blink_components_to_remove(w):
+    abs_inv_w = np.absolute(np.linalg.inv(w))
+    #most_contribute_electrodes = np.argmax(abs_inv_w, axis=0)[::-1]
+    most_contribute_electrodes = get_two_argmax_items_from_each_col(abs_inv_w)[::-1]
+    electrodes_to_remove = np.array([10,11,12])-1
+    components_to_remove = []
+    for i in range(len(most_contribute_electrodes)):
+        for j in range(2):
+            if most_contribute_electrodes[i][j] in electrodes_to_remove:
+                components_to_remove += [i]
+                break
+    return components_to_remove
+
+
+def extract_eeg_to_file(data_path, session, participant):
+    pathProperties = get_edf_file_path_properties(data_path, session, participant)
+    Y, chunks, freq = EdfAnalyzer.Read(pathProperties[0], pathProperties[1], forEEG=True)
+
+    transformer = FastICA(n_components=16, random_state=42, max_iter=1000,whiten="unit-variance",  whiten_solver="eigh", tol=0.00001 )
+    #transformer = PCA(n_components=16)
+    x= np.transpose(transformer.fit_transform(np.transpose(Y))) #FAST ICA
+    w = transformer.components_
+    np.savetxt(os.path.join(data_path, session, f"w_blink_{particiapnt_to_char(participant)}.csv"), w, delimiter=",")
+
+    ticks, start, end = get_callibration_ticks(chunks, freq)
+    subtitles = [f"elec {i}" for i in range(0,16)]
+    plotChunkData(Y[:, start:end], "before_blink_remove", ticks, subtitles, 16, True)
+    #savePlot(os.path.join(data_path, session, f"before_blink_remove_{particiapnt_to_char(participant)}.png"))
+    #blink_channels = sorted(get_blink_components_to_remove(w))
+
+    plotChunkData(x[:, start:end], "choose the component of the blinks", ticks,
+                  w_to_components_titles(w), 16, True)
+    # get_heatmap(os.path.join(data_path, session, f"{particiapnt_to_char(participant)}.jpeg"), 16, w)
+    
+    # TODO: There's must be an automated way to find the blink component
+    blink_channels = get_int_list_input_from_user()
+    for blink_channel in blink_channels:
+        x[blink_channel, :] = np.zeros_like(x[blink_channel, :])
+    
+    Y = np.transpose(transformer.inverse_transform(np.transpose(x)))
+
+    plotChunkData(Y[:, start:end], "after_blink_remove", ticks, subtitles, 16, True)
+    #savePlot(os.path.join(data_path, session, f"after_blink_remove_{particiapnt_to_char(participant)}.png"))
+
+    np.savez(os.path.join(data_path, session, f"EEG_channels_{particiapnt_to_char(participant)}.npz"), Y[14:16, :])
+    write_string_to_file(os.path.join(data_path, session, f"EEG_chunks_{particiapnt_to_char(participant)}.json"), chunks_to_json(chunks, freq))
+
+
+if __name__ == "__main__":
+    data_path = r"C:\Liron\DataEmg\Try"
+    sessions_tqdm = tqdm(GetSessions(data_path)[5:])
+    sessions_tqdm.set_description("Start")
+    for session in sessions_tqdm:
+        for p in [A,B]:
+            extract_eeg_to_file(data_path, session, p)
+            sessions_tqdm.set_description(f"Session : {session}, Participant : {particiapnt_to_char(p)} DONE!")
