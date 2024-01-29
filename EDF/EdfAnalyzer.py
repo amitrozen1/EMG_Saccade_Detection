@@ -136,10 +136,12 @@ class EdfAnalyzer:
         return sigbufs, sampling_rate
     
     @staticmethod
-    def readGyroscopeData(f : pyedflib.EdfReader, doButter = True):
-        gyro_indexes = [16,17,18]
-        sampling_rate = int(f.getSampleFrequency(gyro_indexes[0])) 
-        sigbufs = np.array([f.readSignal(i) for i in gyro_indexes])
+    def readInertialData(f : pyedflib.EdfReader, doButter = True):
+        inertial_indexes = [16,17,18] #gyro or accelorometer if 19 signals only.
+        if ( f.signals_in_file > 21 ):
+            inertial_indexes += [19,20,21] #accelorometer
+        sampling_rate = int(f.getSampleFrequency(inertial_indexes[0])) 
+        sigbufs = np.array([f.readSignal(i) for i in inertial_indexes])
         sigbufs = NotchFilterSignal(sigbufs, sampling_rate)
 
         if (doButter):
@@ -215,17 +217,17 @@ class EdfAnalyzer:
         return sigbufs, chunks, freq
     
     @staticmethod
-    def ReadWithGyro(file_path, correctBy=0, downsample_window_in_ms=1, doButter = True, forEEG = False):
+    def ReadWithInertial(file_path, correctBy=0, downsample_window_in_ms=1, doButter = True, forEEG = False):
         f = pyedflib.EdfReader(file_path)
         emgData, freq = __class__.readEdf(f, doButter, forEEG)
-        gyroData, gyroFreq = __class__.readGyroscopeData(f, doButter)
+        InertialData, InertialFreq = __class__.readInertialData(f, doButter)
 
         chunks, trim_start, trim_end = __class__.getAnnotationChunks(f, correctBy, downsample_window_in_ms)
         emgData = __class__.RemoveRedundentData(emgData, trim_start, trim_end)
-        gyroData = __class__.RemoveRedundentData(gyroData, trim_start//4 , trim_end//4)
+        InertialData = __class__.RemoveRedundentData(InertialData, trim_start//4 , trim_end//4)
         
         f.close()
-        return emgData, chunks, freq, gyroData, gyroFreq
+        return emgData, chunks, freq, InertialData, InertialFreq
     
     @staticmethod
     def ICA(matrix, n_components):
