@@ -136,10 +136,16 @@ class EdfAnalyzer:
         return sigbufs, sampling_rate
     
     @staticmethod
-    def readInertialData(f : pyedflib.EdfReader, doButter = True):
-        inertial_indexes = [16,17,18] #gyro or accelorometer if 19 signals only.
-        if ( f.signals_in_file > 21 ):
-            inertial_indexes += [19,20,21] #accelorometer
+    def readInertialData(f : pyedflib.EdfReader, doButter = True, just_accelorometer = False):
+        if not just_accelorometer:
+            inertial_indexes = [16,17,18] #gyro or accelorometer if 19 signals only.
+            if ( f.signals_in_file > 21 ):
+                inertial_indexes += [19,20,21] #accelorometer
+        else:
+            if ( f.signals_in_file > 21 ):
+                inertial_indexes = [19,20,21]
+            else:
+                inertial_indexes = [16,17,18]
         sampling_rate = int(f.getSampleFrequency(inertial_indexes[0])) 
         sigbufs = np.array([f.readSignal(i) for i in inertial_indexes])
         sigbufs = NotchFilterSignal(sigbufs, sampling_rate)
@@ -217,10 +223,10 @@ class EdfAnalyzer:
         return sigbufs, chunks, freq
     
     @staticmethod
-    def ReadWithInertial(file_path, correctBy=0, downsample_window_in_ms=1, doButter = True, forEEG = False):
+    def ReadWithInertial(file_path, correctBy=0, downsample_window_in_ms=1, doButter = True, forEEG = False, just_accelorometer = False):
         f = pyedflib.EdfReader(file_path)
         emgData, freq = __class__.readEdf(f, doButter, forEEG)
-        InertialData, InertialFreq = __class__.readInertialData(f, doButter)
+        InertialData, InertialFreq = __class__.readInertialData(f, doButter, just_accelorometer)
 
         chunks, trim_start, trim_end = __class__.getAnnotationChunks(f, correctBy, downsample_window_in_ms)
         emgData = __class__.RemoveRedundentData(emgData, trim_start, trim_end)

@@ -38,7 +38,7 @@ def get_special_component_indexes(w, list_of_faulty_channels):
     return [getter(w, list_of_faulty_channels) for getter in special_comps_getters]
 
 def run_emg_analysis(main_corrolation_func, rms_size_ms, downsampleWindowInMs, windowForCorrInMs, numOfPixelsForXCorrStep, headers, csv_out_path):
-    sessions_list = [GetSessions(data_path)[0]]
+    sessions_list = GetSessions(data_path)
     all_correlations = []
 
     for session in tqdm(sessions_list):
@@ -118,7 +118,7 @@ def run_inertial_analysis(main_corrolation_func, rms_size_ms, downsampleWindowIn
 
         path_and_corrections = getPathsFromSessionFolder(os.path.join(data_path, session))
         for p in [A,B]:
-            Y, chunks, freq, inertialData, inertialFreq = EdfAnalyzer.ReadWithInertial(path_and_corrections[p][0], path_and_corrections[p][1], downsampleWindowInMs)
+            Y, chunks, freq, inertialData, inertialFreq = EdfAnalyzer.ReadWithInertial(path_and_corrections[p][0], path_and_corrections[p][1], downsampleWindowInMs, just_accelorometer=True)
 
             inertialData = zscore(inertialData, axis=1)
             inertialData = EdfAnalyzer.window_rms(inertialData, rms_size_ms, inertialFreq)

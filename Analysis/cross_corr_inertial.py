@@ -107,5 +107,5 @@ def main_corrolation(current_session, independentComponents, chunks):
 def main():
     headers = wrap_in_default_headers(get_headers())
     analysis_path = os.path.join(data_path, "results_2024")
-    csv_out_path = os.path.join(analysis_path, "inertial_correlations.csv")
+    csv_out_path = os.path.join(analysis_path, "inertial_correlations_just_acc.csv")
     run_inertial_analysis(main_corrolation, rms_window_in_ms, downsample_window_in_ms, windowForCorrInMs, numOfPixelsForXCorrStep, headers, csv_out_path)

@@ -84,7 +84,7 @@ def main_corrolation(current_session, independentComponents, chunks):
             current_reader = reading_order.pop(0)
 
         for i, s in enumerate(range(0, max_len - numOfPixelsForXCorrWindow , numOfPixelsForXCorrStep)): #not using jumps.
-            e = s+ numOfPixelsForXCorrStep
+            e = s + numOfPixelsForXCorrWindow # todo: run again.
             #numOfPixelsForXCorrWindow
             if ( action.lower() == "reading" and current_reader == A):
                 max_corr, max_ind = get_max_xcorr_2d(mat2, mat1, max_lag_ms,
@@ -181,4 +181,4 @@ def get_special_component_indexes(w, list_of_faulty_channels):
     return [getter(w, list_of_faulty_channels) for getter in special_comps_getters]
 
 def main():
-    run_emg_analysis(main_corrolation, rms_size_ms, downsampleWindowInMs, windowForCorrInMs, numOfPixelsForXCorrStep, wrap_in_default_headers(get_headers()), os.path.join(data_path,"results_2024", f"RMS_{rms_size_ms}_downsample_{downsampleWindowInMs}_window_{windowForCorrInMs}_step_{numOfPixelsForXCorrStep}_pixels_just_xcorr_plus_temporal_hilas_electordes_try.csv"))
+    run_emg_analysis(main_corrolation, rms_size_ms, downsampleWindowInMs, windowForCorrInMs, numOfPixelsForXCorrStep, wrap_in_default_headers(get_headers()), os.path.join(data_path,"results_2024", f"RMS_{rms_size_ms}_downsample_{downsampleWindowInMs}_window_{windowForCorrInMs}_step_{numOfPixelsForXCorrStep}_pixels_just_xcorr_plus_temporal_hilas_electordes_try_fix_overlap.csv"))
