@@ -1,20 +1,12 @@
 import os
-from General.HelperFunctions import GetSessions, cleanSpace, reshape_num_channels, RemoveRowFromMatrix
 import numpy as np
-from scipy.stats import zscore
-from scipy.stats import pearsonr
 from General.init import *
 import pandas as pd
-from PsychData.AnalyzeQuestionnaire import GetStatsRowsFromSession, GetStatsHeaderWithouSession
-from PsychData.LoadChoicesJson import loadChoiceFromSession
-from tqdm import tqdm
 from General.StatisticsFunctions import cross_rqa
-from General.CorrolationMethods import get_peak_xcorr, dtai_dist_dtw_pearson_over_seconds, get_max_xcorr_2d, get_max_xcorr_1d
+from General.CorrolationMethods import dtai_dist_dtw_pearson_over_seconds, get_max_xcorr_2d, get_max_xcorr_1d
 import re
-from General.HelperFunctions import getPathsFromSessionFolder, remove_rows_from_matrix
-from EDF.EdfAnalyzer import EdfAnalyzer
 from ComponentAnalysis.ComponentExtractor import GetCorrugatorComponent, GetNoseComponent, GetSideEyeComponent, GetZygomaticusComponent
-
+from Analysis.analysis_runner import run_emg_analysis
 
 rms_size_ms = 100
 downsampleWindowInMs = 20
@@ -92,7 +84,7 @@ def main_corrolation(current_session, independentComponents, chunks):
             current_reader = reading_order.pop(0)
 
         for i, s in enumerate(range(0, max_len - numOfPixelsForXCorrWindow , numOfPixelsForXCorrStep)): #not using jumps.
-            e = s+ numOfPixelsForXCorrStep
+            e = s + numOfPixelsForXCorrWindow # todo: run again.
             #numOfPixelsForXCorrWindow
             if ( action.lower() == "reading" and current_reader == A):
                 max_corr, max_ind = get_max_xcorr_2d(mat2, mat1, max_lag_ms,
@@ -188,73 +180,5 @@ def get_special_component_indexes(w, list_of_faulty_channels):
     special_comps_getters = [GetNoseComponent, GetSideEyeComponent, GetZygomaticusComponent, GetCorrugatorComponent]
     return [getter(w, list_of_faulty_channels) for getter in special_comps_getters]
 
-
-if __name__ == "__main__":
-    headers = wrap_in_default_headers(get_headers())
-    sessions = GetSessions(data_path)
-    all_correlations = []
-
-    csv_path = os.path.join(data_path,"results_2024", f"RMS_{rms_size_ms}_downsample_{downsampleWindowInMs}_window_{windowForCorrInMs}_step_{numOfPixelsForXCorrStep}_pixels_just_xcorr_plus_temporal_hilas_electordes.csv")
-
-    for session in tqdm(sessions):
-        breaked = False
-        print(session)
-        elecs_to_remove, is_dark = get_review_data(session)
-
-        both_componenets = [[],[]]
-        both_chunks = [[],[]]
-
-        path_and_corrections = getPathsFromSessionFolder(os.path.join(data_path, session))
-        for p in [A,B]:
-            Y, chunks, freq = EdfAnalyzer.Read(path_and_corrections[p][0], path_and_corrections[p][1], downsampleWindowInMs)
-
-            Y = remove_rows_from_matrix(Y, elecs_to_remove[p])
-            Y = zscore(Y, axis=1)
-
-            w, independentComponents = EdfAnalyzer.ICA(Y, 16-len(elecs_to_remove[p]))
-            independentComponents = EdfAnalyzer.window_rms(independentComponents, rms_size_ms, freq)
-            independentComponents = EdfAnalyzer.resample_by_averaging_every_n(independentComponents, downsampleWindowInMs, freq)
-
-            #create a new components:
-            special_comps_index = get_special_component_indexes(w, elecs_to_remove[p])
-
-            if (-1 in special_comps_index):
-                print("Error in session " + session + " participant " + str(p))
-                breaked = True
-                continue
-
-            total_max = np.max(independentComponents, axis=0)
-            independentComponents = independentComponents[special_comps_index, :]
-            special_max = np.max(independentComponents, axis=0)
-            #for temporal analysis:
-            independentComponents = np.vstack((independentComponents, total_max))
-            independentComponents = np.vstack((independentComponents, special_max))
-
-            both_componenets[p] = independentComponents
-            both_chunks[p] = chunks
-
-        if (breaked):
-            continue
-
-        corr_results = main_corrolation(session, both_componenets, both_chunks)
-
-        choices = loadChoiceFromSession(data_path, session)
-        for i in range(len(corr_results)):
-            result = corr_results[i]
-            key = result[1]
-            story_number = key.split("_")[1]
-            if ( story_number != ''):
-                story_number = story_number.split('.')[0]
-                for choice in choices:
-                    if ( story_number == choice[0] ):
-                        corr_results[i] = result + choice[1:]
-                        break
-        
-        all_correlations += corr_results
-        del independentComponents
-        cleanSpace()
-        print("finished session " + session)
-    
-    df = pd.DataFrame(all_correlations)
-    df.columns = headers
-    df.to_csv(csv_path)
+def main():
+    run_emg_analysis(main_corrolation, rms_size_ms, downsampleWindowInMs, windowForCorrInMs, numOfPixelsForXCorrStep, wrap_in_default_headers(get_headers()), os.path.join(data_path,"results_2024", f"RMS_{rms_size_ms}_downsample_{downsampleWindowInMs}_window_{windowForCorrInMs}_step_{numOfPixelsForXCorrStep}_pixels_just_xcorr_plus_temporal_hilas_electordes_try_fix_overlap.csv"))
