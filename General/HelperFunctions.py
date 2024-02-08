@@ -139,3 +139,26 @@ def replace_rows_with_ones(mat, rows_to_delete):
     for row in rows_to_delete:
         mat[row] = np.ones(mat.shape[1])
     return mat
+
+def stack_rows_with_pad(a, b):
+    a = np.array(a)
+    b = np.array(b)
+    if a.size == 0:
+        return b
+    
+    a_len = a.shape[1] if len(a.shape) > 1 else len(a)
+    b_len = b.shape[1] if len(b.shape) > 1 else len(b)
+
+    diff = a_len - b_len
+    if diff > 0:
+        if ( len(b.shape) == 1 or b.shape[1] == 0):
+            b = np.append(b,[0]*abs(diff))
+        else:
+            b = np.append(b, np.zeros((b.shape[0], abs(diff))), axis=1)
+    elif diff < 0:
+        if ( len(a.shape) == 1 or a.shape[1] == 0):
+            a = np.append(a,[0]*abs(diff))
+        else:
+            a = np.append(a, np.zeros((a.shape[0], abs(diff))), axis=1)
+    
+    return np.row_stack((a,b))

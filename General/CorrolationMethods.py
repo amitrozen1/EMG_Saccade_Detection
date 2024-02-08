@@ -191,7 +191,7 @@ def get_peak_xcorr_generic(mat1, mat2, tMaxMs, downsample_window_ms, s, e, func_
     max_corr, max_ind = get_xcorr_matrix_peak_generic(xcorr_matrix, tMaxMs, downsample_window_ms, first_lag, last_lag)
     return max_corr, max_ind
 
-def get_max_xcorr_2d(mat1, mat2, tMaxMs, downsample_window_ms, s, e, state="listen"):
+def get_max_xcorr_2d(mat1, mat2, tMaxMs, downsample_window_ms, s, e, state="listen", shouldReturnXcorrVec = False):
     # I will create the bigger matrix from mat1
     # listener matrix should be mat1 in the case of "read"
     tMax = tMaxMs // downsample_window_ms
@@ -211,20 +211,16 @@ def get_max_xcorr_2d(mat1, mat2, tMaxMs, downsample_window_ms, s, e, state="list
     xcorr_vec = correlate2d(mat1, mat2, mode='valid')
     argmax = np.argmax(xcorr_vec)
 
-    # plt.plot(xcorr_vec[0])
-    # plt.title(f"{state}_2d")
-    # #mark the maximal corr:
-    # plt.plot(argmax, xcorr_vec[0][argmax], 'ro')
-    # plt.show()
-    # plt.clf()
-
-
     max_corr = xcorr_vec[0][argmax] / (mat2.shape[0]*mat2.shape[1])
     
     max_ind = s1 - s + argmax*downsample_window_ms
+    
+    if shouldReturnXcorrVec:
+        return xcorr_vec
+    
     return max_corr, max_ind
 
-def get_max_xcorr_1d(mat1, mat2, tMaxMs, downsample_window_ms, s, e, state="listen"):
+def get_max_xcorr_1d(mat1, mat2, tMaxMs, downsample_window_ms, s, e, state="listen", shouldReturnXcorrVec=False):
     # I will create the bigger matrix from mat1
     # listener matrix should be mat1 in the case of "read"
     tMax = tMaxMs // downsample_window_ms
@@ -260,7 +256,90 @@ def get_max_xcorr_1d(mat1, mat2, tMaxMs, downsample_window_ms, s, e, state="list
     max_corr = xcorr_vec[argmax] / len(mat2)
     
     max_ind = s1 - s + argmax*downsample_window_ms
+
+    if shouldReturnXcorrVec:
+        return xcorr_vec
+
     return max_corr, max_ind
+
+
+def get_max_pearson_xcorr_2d(mat1, mat2, tMaxMs, downsample_window_ms, s, e, state="listen"):
+    tMax = tMaxMs // downsample_window_ms
+    s1 = 0
+    if "read" in state.lower():
+        s1 = s
+    elif s - tMax > 0:
+        s1 = s - tMax
+
+    e1 = e + tMax
+    if e1 > mat1.shape[1]:
+        e1 = mat1.shape[1]
+
+    mat1 = mat1[:, s1:e1]
+    mat2 = mat2[:, s:e]
+
+    correlations = []
+    shifts = range(mat1.shape[1] - mat2.shape[1] + 1)
+    
+    # Compute Pearson correlation for each possible shift
+    for shift in shifts:
+        temp_corrs = []
+        for row in range(mat1.shape[0]):
+            if row < mat2.shape[0]:  # Ensure we only compare rows that exist in both matrices
+                mat1_row = mat1[row, shift:(shift + mat2.shape[1])]
+                mat2_row = mat2[row, :]
+                corr, _ = pearsonr(mat1_row, mat2_row)
+                if not np.isnan(corr):  # Skip NaN results, which occur if there's no variance
+                    temp_corrs.append(corr)
+        if temp_corrs:  # Ensure there are correlations to mean
+            mean_corr = np.mean(temp_corrs)
+            correlations.append((mean_corr, shift))
+    
+    # Find the shift with the maximum mean correlation
+    if correlations:
+        max_corr, best_shift = max(correlations, key=lambda x: x[0])
+    else:
+        return None, None  # No valid correlations found
+    
+    max_ind = s1 - s + best_shift * downsample_window_ms
+    return max_corr, max_ind
+
+
+def get_max_xcorr_pearson_1d(mat1, mat2, tMaxMs, downsample_window_ms, s, e, state="listen"):
+    tMax = tMaxMs // downsample_window_ms
+    s1 = 0
+    if "read" in state.lower():
+        s1 = s
+    elif s - tMax > 0:
+        s1 = s - tMax
+
+    mat1 = mat1.flatten()
+    mat2 = mat2.flatten()
+
+    e1 = e + tMax
+    if e1 > len(mat1):
+        e1 = len(mat1)
+    
+    mat1 = mat1[s1:e1]
+    mat2 = mat2[s:e]
+
+    max_corr = -np.inf
+    max_ind = -1
+
+    # Compute Pearson correlation for each shift within the valid range
+    for i in range(len(mat1) - len(mat2) + 1):
+        window = mat1[i:i+len(mat2)]
+        corr = np.corrcoef(window, mat2)[0, 1]
+        
+        if corr > max_corr:
+            max_corr = corr
+            max_ind = i
+
+    max_ind = s1 + max_ind * downsample_window_ms
+
+    return max_corr, max_ind
+
+
 
 
 def phase_synchrony(y1,y2):
@@ -436,6 +515,9 @@ def z_alpha_score(mat, alpha):
         return (mat - alpha*np.mean(mat))/np.std(mat)
     
     return (mat - alpha*get_column_array(np.mean(mat, axis=1)))/get_column_array(np.std(mat, axis=1))
+
+
+
 
 if __name__=="__main__":
 

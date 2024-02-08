@@ -55,9 +55,9 @@ def main_corrolation(current_session, independentComponents, chunks):
         max_lag_ms = windowForCorrInMs
         #jumps = numOfPixelsForXCorrWindow
         if len(mat1_max.shape) == 1:
-            max_len = min(mat1_max.shape[0], mat1_max.shape[0])
+            max_len = min(mat1_max.shape[0], mat2_max.shape[0])
         else:
-            max_len = min(mat1_max.shape[1], mat1_max.shape[1])
+            max_len = min(mat1_max.shape[1], mat2_max.shape[1])
         
         action = key.split("_")[0]
         current_reader = A
@@ -65,8 +65,7 @@ def main_corrolation(current_session, independentComponents, chunks):
             current_reader = reading_order.pop(0)
 
         for i, s in enumerate(range(0, max_len - numOfPixelsForXCorrWindow , numOfPixelsForXCorrStep)): #not using jumps.
-            e = s+ numOfPixelsForXCorrStep
-            #numOfPixelsForXCorrWindow
+            e = s + numOfPixelsForXCorrWindow
             if ( action.lower() == "reading" and current_reader == A):
                 max_comp_max_corr, max_comp_max_lag = get_max_xcorr_1d(mat2_max, mat1_max, max_lag_ms,
                                                     downsample_window_in_ms, s, e, action)
@@ -107,5 +106,5 @@ def main_corrolation(current_session, independentComponents, chunks):
 def main():
     headers = wrap_in_default_headers(get_headers())
     analysis_path = os.path.join(data_path, "results_2024")
-    csv_out_path = os.path.join(analysis_path, "inertial_correlations_just_acc.csv")
+    csv_out_path = os.path.join(analysis_path, "inertial_correlations_just_acc_corrected.csv")
     run_inertial_analysis(main_corrolation, rms_window_in_ms, downsample_window_in_ms, windowForCorrInMs, numOfPixelsForXCorrStep, headers, csv_out_path)
