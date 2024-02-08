@@ -80,7 +80,7 @@ def run_emg_analysis(main_corrolation_func, rms_size_ms, downsampleWindowInMs, w
 
         if (breaked):
             continue
-
+        
         corr_results = main_corrolation_func(session, both_componenets, both_chunks)
 
         choices = loadChoiceFromSession(data_path, session)
@@ -100,9 +100,10 @@ def run_emg_analysis(main_corrolation_func, rms_size_ms, downsampleWindowInMs, w
         cleanSpace()
         print("finished session " + session)
     
-    df = pd.DataFrame(all_correlations)
-    df.columns = headers
-    df.to_csv(csv_out_path)
+    if (csv_out_path!= None):
+        df = pd.DataFrame(all_correlations)
+        df.columns = headers
+        df.to_csv(csv_out_path)
 
 
 def run_inertial_analysis(main_corrolation_func, rms_size_ms, downsampleWindowInMs, windowForCorrInMs, numOfPixelsForXCorrStep, headers, csv_out_path):

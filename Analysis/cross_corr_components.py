@@ -3,7 +3,7 @@ import numpy as np
 from General.init import *
 import pandas as pd
 from General.StatisticsFunctions import cross_rqa
-from General.CorrolationMethods import dtai_dist_dtw_pearson_over_seconds, get_max_xcorr_2d, get_max_xcorr_1d
+from General.CorrolationMethods import dtai_dist_dtw_pearson_over_seconds, get_max_xcorr_2d, get_max_xcorr_1d, get_max_pearson_xcorr_2d, get_max_xcorr_pearson_1d
 import re
 from ComponentAnalysis.ComponentExtractor import GetCorrugatorComponent, GetNoseComponent, GetSideEyeComponent, GetZygomaticusComponent
 from Analysis.analysis_runner import run_emg_analysis
@@ -86,7 +86,8 @@ def main_corrolation(current_session, independentComponents, chunks):
         for i, s in enumerate(range(0, max_len - numOfPixelsForXCorrWindow , numOfPixelsForXCorrStep)): #not using jumps.
             e = s + numOfPixelsForXCorrWindow # todo: run again.
             #numOfPixelsForXCorrWindow
-            if ( action.lower() == "reading" and current_reader == A):
+            skipReaderAssumption = True
+            if ( (not skipReaderAssumption) and action.lower() == "reading" and current_reader == A):
                 max_corr, max_ind = get_max_xcorr_2d(mat2, mat1, max_lag_ms,
                                                     downsampleWindowInMs, s, e, action)
                 max_temporal_corr, max_temporal_ind = get_max_xcorr_1d(temporal_max2, temporal_max1, max_lag_ms,
@@ -181,4 +182,4 @@ def get_special_component_indexes(w, list_of_faulty_channels):
     return [getter(w, list_of_faulty_channels) for getter in special_comps_getters]
 
 def main():
-    run_emg_analysis(main_corrolation, rms_size_ms, downsampleWindowInMs, windowForCorrInMs, numOfPixelsForXCorrStep, wrap_in_default_headers(get_headers()), os.path.join(data_path,"results_2024", f"RMS_{rms_size_ms}_downsample_{downsampleWindowInMs}_window_{windowForCorrInMs}_step_{numOfPixelsForXCorrStep}_pixels_just_xcorr_plus_temporal_hilas_electordes_try_fix_overlap.csv"))
+    run_emg_analysis(main_corrolation, rms_size_ms, downsampleWindowInMs, windowForCorrInMs, numOfPixelsForXCorrStep, wrap_in_default_headers(get_headers()), os.path.join(data_path,"results_2024", f"RMS_{rms_size_ms}_downsample_{downsampleWindowInMs}_window_{windowForCorrInMs}_step_{numOfPixelsForXCorrStep}_pixels_just_xcorr_plus_temporal_no_reader_assumption.csv"))

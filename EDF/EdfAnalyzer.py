@@ -131,7 +131,7 @@ class EdfAnalyzer:
             if ( not forEEG):
                 sigbufs = butter_bandpass_filter(sigbufs, 20.0, 400.0, sampling_rate)
             else:
-                sigbufs = butter_bandpass_filter(sigbufs, 0.5, 40.0, sampling_rate) #todo - check if this is good for EEG
+                sigbufs = butter_bandpass_filter(sigbufs, 0.5, 8.0, sampling_rate) #todo - check if this is good for EEG
         
         return sigbufs, sampling_rate
     
