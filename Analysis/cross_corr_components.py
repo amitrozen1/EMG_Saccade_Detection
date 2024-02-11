@@ -53,6 +53,7 @@ def main_corrolation(current_session, independentComponents, chunks):
     reading_order = [A, A, B, B, A, A, B, B]
     for key in chunks[0]:
         chunk_data = [[],[]]
+        action = key.split("_")[0]
 
         for participant in [A,B]:
             chunk = chunks[participant][key]
@@ -60,23 +61,31 @@ def main_corrolation(current_session, independentComponents, chunks):
             chunk_end = int(chunk.End.Time)
             chunk_data[participant] = independentComponents[participant][: , chunk_start:chunk_end]
 
-        mat1 = chunk_data[A][0:4]
-        mat2 = chunk_data[B][0:4]
+        if ( action.lower() == "reading" ):
+            #take rows 0,1,3 - avoid zygomaticus.
+            mat1 = chunk_data[A][[0,1,3]]
+            mat2 = chunk_data[B][[0,1,3]]
+        else:
+            mat1 = chunk_data[A][0:4]
+            mat2 = chunk_data[B][0:4]
 
         temporal_max1 = chunk_data[A][4]
         temporal_max2 = chunk_data[B][4]
         temporal_correlations = []
         temporal_lags = []
 
-        chosen_max1 = chunk_data[A][5]
-        chosen_max2 = chunk_data[B][5]
+        if ( action.lower() == "reading" ):
+            chosen_max1 = np.max(mat1, axis=0)
+            chosen_max2 = np.max(mat2, axis=0)
+        else:
+            chosen_max1 = chunk_data[A][5]
+            chosen_max2 = chunk_data[B][5]
         chosen_correlations = []
         chosen_lags = []
 
         max_lag_ms = windowForCorrInMs
         #jumps = numOfPixelsForXCorrWindow
         max_len = min(mat1.shape[1], mat2.shape[1])
-        action = key.split("_")[0]
         corolations = []
         lags = []
         current_reader = A
@@ -182,4 +191,4 @@ def get_special_component_indexes(w, list_of_faulty_channels):
     return [getter(w, list_of_faulty_channels) for getter in special_comps_getters]
 
 def main():
-    run_emg_analysis(main_corrolation, rms_size_ms, downsampleWindowInMs, windowForCorrInMs, numOfPixelsForXCorrStep, wrap_in_default_headers(get_headers()), os.path.join(data_path,"results_2024", f"RMS_{rms_size_ms}_downsample_{downsampleWindowInMs}_window_{windowForCorrInMs}_step_{numOfPixelsForXCorrStep}_pixels_just_xcorr_plus_temporal_no_reader_assumption.csv"))
+    run_emg_analysis(main_corrolation, rms_size_ms, downsampleWindowInMs, windowForCorrInMs, numOfPixelsForXCorrStep, wrap_in_default_headers(get_headers()), os.path.join(data_path,"results_2024", f"RMS_{rms_size_ms}_downsample_{downsampleWindowInMs}_window_{windowForCorrInMs}_step_{numOfPixelsForXCorrStep}_pixels_no_reader_assumption_no_zyg_on_read.csv"))
