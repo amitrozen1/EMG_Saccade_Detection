@@ -131,42 +131,40 @@ def find_blink_duration(signal, binary_blinks_list, threshold=0.05):
     # fix - thinks it gets the top of the blink and not the beginning
     window_length = 5
     blinks_duration = []
+    end_threshold = 0.1
     for blink in binary_blinks_list:
-        # where signal is the single component (blinking) signal - expecting a vector over time 
-        minima = signal[blink]
+        # when signal is the single component (blinking) signal - expecting a vector over time 
         t_start = blink
         t_end = blink
-        # got_to_normal_flag = False
-        # i = 1
-
-        # In case the binary list gets a moment in the middle of the blink and not the beginning
-        # while not got_to_normal_flag:
-        #    if blink - i*window_length < 0:
-        #         new_minima = signal[0]
-        #    else:
-        #         new_minima = signal[blink - i*window_length]
-        #    if new_minima < minima and minima - new_minima > threshold:
-        #        minima = new_minima
-        #        i += 1
-        #    else:
-        #        t_start = blink - i*window_length
-        #        minima = signal[blink]
-        #        got_to_normal_flag = True
-        
+        t_peak = blink
         i = 1
+
+        # find the peak of the blink
+        while signal[t_peak] <= signal[t_peak + i*window_length]:
+            if t_peak + (i+1)*window_length < len(signal):
+                if signal[t_peak] < signal[-1]:
+                    t_peak = len(signal) - 1
+                break
+                
+            t_peak = blink + i*window_length
+            i += 1 
+
         got_to_normal_flag = False
+        minima = signal[t_peak]
         while not got_to_normal_flag:
+            # checking if we got to the end of the signal
             if blink + i*window_length > len(signal):
                 new_minima = signal[-1]
                 t_end = len(signal)
                 got_to_normal_flag = True
             else:
                 new_minima = signal[blink + i*window_length]
-            if new_minima < minima and minima - new_minima > threshold:
+
+            if new_minima < minima:
                 minima = new_minima
                 i += 1
             # at the second part of the blink there is usually a rise in the signal which is part of the blink
-            elif new_minima - signal[t_start] > threshold or i < 3:
+            elif new_minima - signal[t_start] > end_threshold:
                 i += 1
             else:
                t_end = blink + i*window_length
