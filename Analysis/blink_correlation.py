@@ -29,7 +29,7 @@ def blink_correlation_rate_based(rated_blinks_participant1, rated_blinks_partici
                     total_matches += 1
                 break
     
-    correlation_index = total_matches / max_possible_matches
+    correlation_index = total_matches / max_possible_matches if max_possible_matches > 0 else 0
     return correlation_index
 
  # Convert spike times to phase
