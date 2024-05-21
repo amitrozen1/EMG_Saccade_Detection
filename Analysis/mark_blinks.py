@@ -4,9 +4,9 @@ from matplotlib.widgets import SpanSelector as SpanSelector
 
 
 class SignalSelector:
-    def __init__(self, signal):
+    def __init__(self, signal, figsize=(32, 16)):
         self.signal = signal
-        self.fig, self.ax = plt.subplots()
+        self.fig, self.ax = plt.subplots(figsize=figsize)
         self.ax.plot(signal)
         self.ax.set_title('Click and drag to select part of the signal')
         self.span = None
@@ -24,7 +24,7 @@ class SignalSelector:
         self.ax.axvspan(indmin, indmax, color='yellow', alpha=0.3)  # Highlight selected region
         self.fig.canvas.draw_idle()  # Redraw the figure to update the highlighted selection
         plt.close(self.fig)
-        
+
     def select_part_of_signal(self):
         # Create a span selector for interactive selection
         self.span = SpanSelector(self.ax, self.onselect, 'horizontal', useblit=True,

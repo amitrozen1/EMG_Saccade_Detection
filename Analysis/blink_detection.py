@@ -3,7 +3,7 @@
 
 from Analysis.blinking_for_shoval import *
 
-def blink_peaks_detect(one_blink, blinking_component_signal):
+def blink_peaks_detect(one_blink, blinking_component_signal, height=0.32):
     """
         gets a filtered signal as input and a 'blink' to create a filter from
     returns a list consisnting all peaks that were detected as blinks in the filtered signal
@@ -12,7 +12,7 @@ def blink_peaks_detect(one_blink, blinking_component_signal):
     # blink = extract_blink_from_vector(blinking_component_signal)
     
     win1 = create_filter(one_blink, 4)
-    spike_train = convert_patten_to_spike_train(blinking_component_signal, win1, 4000)
+    spike_train = convert_patten_to_spike_train(blinking_component_signal, win1, 4000, height=height)
 
     binary_blinks_list = []
     
@@ -63,7 +63,7 @@ def norm_stand(sig):
     normalized_standardized_sig = (normalized_sig - mean) / std
     return normalized_standardized_sig
 
-def convert_patten_to_spike_train(sig, filter, fs):
+def convert_patten_to_spike_train(sig, filter, fs, height=0.32):
     """
         gets an EMG signal and a blinking pattern filter and converts the signal to a spike train of blinks
     :param sig: EMG signal of a participant
@@ -100,7 +100,7 @@ def convert_patten_to_spike_train(sig, filter, fs):
     plt.xlabel("correlated signal", fontsize=16)
     plt.plot(corr)
     plt.show()
-    peaks = signal.find_peaks(corr, height=0.32)
+    peaks = signal.find_peaks(corr, height=height)
     spike_train = np.zeros_like(t)
     spike_train[peaks[0]] = 1
     plt.figure(figsize=(8, 5))
@@ -181,6 +181,7 @@ def rate_blinks(blinks_timing):
     blinks_timing - a list of blinks with their start time and end time) 
     returns a list of the blinks with their rate
     """
+    print("blinks timing: ", blinks_timing)
     shortest = 0
     longest = 0
     blinks_duration = []
@@ -198,14 +199,15 @@ def rate_blinks(blinks_timing):
 
     return rated_blinks
 
-def blink_detection(single_component_signal, fs):
+def blink_detection(single_component_signal, fs, one_blink=None):
     """
         Gets a single component signal and returns a list of the blinks in the signal with their rates 
     """
     # filtered_signal = butter_bandpass_filter(single_component_signal, lowcut=, highcut=, fs)
     # find (binary) the blinks
     # one_blink = extract_blink_from_vector(single_component_signal)
-    one_blink = single_component_signal[7175:7215]
+    if one_blink is None:    
+        one_blink = single_component_signal[7175:7215]
     plt.figure(figsize=(9,5))
     plt.rcParams['font.size'] = '16'
     plt.xlabel("one blink", fontsize=16)
@@ -222,8 +224,13 @@ def blink_detection(single_component_signal, fs):
     return rated_blinks
 
 def main():
+    # extracting the blinking component from the data
     vector, chunks = extract_main()
-    # my own implementation
-    print("My own implementation")
+    
+    # rating the blinks in the data of the participant
     rated_blinks = blink_detection(vector, original_frequency)
     print(rated_blinks)
+
+    # comparing the blinks of two participants
+    
+

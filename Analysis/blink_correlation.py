@@ -22,7 +22,7 @@ def blink_correlation_rate_based(rated_blinks_participant1, rated_blinks_partici
             start_time_2 = blink2[0][0]
             rate2 = blink2[1]
 
-            if abs(start_time_1 - start_time_2) < delay:
+            if abs(start_time_1[0] - start_time_2[0]) < delay:
                 if rate_based:
                     total_matches += 1 - abs(rate1 - rate2)
                 else:
@@ -37,7 +37,7 @@ def spike_times_to_phase(spike_times):
     # Simplified example: Assume phase progresses linearly between spikes
     phases = np.linspace(0, 2*np.pi, len(spike_times), endpoint=False)
     return phases
-    
+
 def blink_correlation_phase_based(blinks_participant1, blinks_participant2):
     """
     Calculate the correlation between the blinks of two participants
@@ -49,12 +49,42 @@ def blink_correlation_phase_based(blinks_participant1, blinks_participant2):
     """
 
     phase1 = spike_times_to_phase(blinks_participant1)
-    phase2 = spike_times_to_phase(blinks_participant2) 
+    phase2 = spike_times_to_phase(blinks_participant2)
+    
+    # Find common time base
+    min_time = min(min(blinks_participant1), min(blinks_participant2))
+    max_time = max(max(blinks_participant1), max(blinks_participant2))
+    common_time_base = np.linspace(min_time, max_time, max(len(blinks_participant1), len(blinks_participant2)))
+    
+    # Interpolate phases to the common time base
+    phase1_interp = np.interp(common_time_base, blinks_participant1, phase1)
+    phase2_interp = np.interp(common_time_base, blinks_participant2, phase2)
+    
     # Calculate phase differences
-    phase_diff = np.exp(1j * (phase1 - phase2))
+    phase_diff = np.exp(1j * (phase1_interp - phase2_interp))
+    
     # Calculate PLV
     plv = np.abs(np.mean(phase_diff))
     return plv
+
+# old version - not working when the spike_trains aren't from the same length    
+# def blink_correlation_phase_based(blinks_participant1, blinks_participant2):
+#     """
+#     Calculate the correlation between the blinks of two participants
+#     The correlation is based on the frequency of the blinks
+#     blinks_participant1 - a list of the blinks of the first participant - spike train
+#     blinks_participant2 - a list of the blinks of the second participant - spike train
+#     The algorithm is based on PLV (Phase Locking Value) - a measure of phase synchronization
+#     returns the correlation between the two participants - between 0 and 1
+#     """
+
+#     phase1 = spike_times_to_phase(blinks_participant1)
+#     phase2 = spike_times_to_phase(blinks_participant2) 
+#     # Calculate phase differences
+#     phase_diff = np.exp(1j * (phase1 - phase2))
+#     # Calculate PLV
+#     plv = np.abs(np.mean(phase_diff))
+#     return plv
 
 def correlation_main(first_blink, second_blink, single_component_signal1, single_component_signal2, plv=False, rate_based=False):
     """
@@ -73,5 +103,3 @@ def correlation_main(first_blink, second_blink, single_component_signal1, single
         rated_blink2 = blink_detection(single_component_signal2, original_frequency, second_blink)
         correlation = blink_correlation_rate_based(rated_blink1, rated_blink2, delay=50, rate_based=rate_based)
     return correlation
-
-    
