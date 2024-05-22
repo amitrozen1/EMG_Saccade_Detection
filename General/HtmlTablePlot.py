@@ -35,9 +35,48 @@ def addRow(d : dict, row : list):
     new_id = len(d["rows"])
     d["rows"] += [[HtmlCol(ColType.Text, str(new_id))] + row]
 
+def get_css():
+    css = """
+    <head>
+    <style>
+        /* Style the table itself */
+        table {
+            table-layout: fixed;
+            width: 100%;
+            border: 1px solid black;
+            letter-spacing: 1px;
+        }
+
+        /* Make the table header sticky */
+        th {
+            background-color: #f9f9f9; /* Optional: background color for the header */
+            position: sticky;
+            top: 0;
+            z-index: 1; /* Ensures the header is above other content */
+        }
+
+        /* Additional styling for the rest of the table for better visibility */
+        td, th {
+            border: 1px solid black;
+            padding: 8px;
+            text-align: left;
+        }
+
+        /* Example styling for scrollable content */
+        .scrollable-table {
+            height: 200px; /* Adjust based on your needs */
+            overflow-y: auto;
+        }
+        </style>
+    </head>
+    """
+    return css
+
+def get_table_tag():
+    return "<table letter-spacing='1px'  style='table-layout: fixed; width:100%;' border='1px solid black' >"
 
 def PlotDictionary(dict):
-    html = "<html><table letter-spacing='1px'  style='table-layout: fixed; width:100%;' border='1px solid black' >"
+    html = f"<html>{get_css()}{get_table_tag()}"
     #Add titles:
     html += "<tr>"
     for title in dict["titles"]:

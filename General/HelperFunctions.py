@@ -6,6 +6,7 @@ import json
 import numpy as np
 from scipy.signal import find_peaks
 import re
+import pandas as pd
 
 
 
@@ -162,3 +163,24 @@ def stack_rows_with_pad(a, b):
             a = np.append(a, np.zeros((a.shape[0], abs(diff))), axis=1)
     
     return np.row_stack((a,b))
+
+review_df = None
+
+def regex_split_to_numbers_with_all_possible_seprators(s):
+    if pd.isna(s):
+        return []
+    return [ int(x) for x in re.split(r"[^0-9.]", s) if x != "" ]
+
+def get_review_data(session, data_path):
+    global review_df
+    if review_df is None:
+        review_df = pd.read_csv(os.path.join(data_path, "batch1_review.csv"))
+    
+    row = review_df[review_df["session_name"] == session]
+    bad_electrodes = [row[f"bad_electrodes_{p}"].values[0] for p in ["A", "B"]]
+    #convert into two lists:
+    bad_electrodes = [regex_split_to_numbers_with_all_possible_seprators(x) for x in bad_electrodes]
+    bad_electrodes = [np.array(x)-1 for x in bad_electrodes]
+    is_dark = row["is_dark"].values[0] == "Yes"
+
+    return bad_electrodes, is_dark

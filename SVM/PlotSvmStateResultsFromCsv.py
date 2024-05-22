@@ -1,3 +1,6 @@
+import sys
+sys.path.insert(0, "C://Liron/Code/emg_data_analysis")
+
 import matplotlib.pyplot as plt
 import json
 import numpy as np
@@ -87,14 +90,14 @@ B=1
 titles = []
 data = []
 ticks = []
-folder = r"C:\Liron\DataEmg\Done\15122022_1430"
+folder = r"C:\Liron\DataEmg\Try\15122022_1430"
 stateToAnalyze = "smile"
-svmType = "svr" # "svc"
-isDownSample = True
+svmType = "svc_50HZ"
+isDownSample = False
 
 path = fr"{folder}\{stateToAnalyze}\{svmType}"
 
-downsampleWindowInMs = rmsWindowInMs
+downsampleWindowInMs = 100
 if ( not isDownSample ):
     downsampleWindowInMs = 0
  

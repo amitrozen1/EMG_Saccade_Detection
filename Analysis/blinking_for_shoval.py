@@ -1,14 +1,17 @@
+# Extracting the blinking vector from the EEG signal
+
 import os
 import numpy as np
 from scipy.stats import zscore
-#there are some general parameters in General.init
+from scipy import signal
 from General.init import *
 from General.HelperFunctions import getPathsFromSessionFolder
-from EDF.EdfAnalyzer import EdfAnalyzer
+from EDF.EdfAnalyzer import EdfAnalyzer, butter_bandpass_filter
 import matplotlib.pyplot as plt
 from General.HelperFunctions import GetSessions
 from ComponentAnalysis.ComponentExtractor import GetSideEyeComponent
 from General.PlotFunctions import savePlot, clearPlot, plotChunkData
+# there are some general parameters in General.init
 
 def remove_first_values_from_all_array_values(arr):
     s = arr[0]
@@ -16,7 +19,7 @@ def remove_first_values_from_all_array_values(arr):
         arr[i] = arr[i] - s
     return arr
 
-#data path - the folder that contains session folders
+# data path - the folder that contains session folders
 # session folder name - e.g: 121222_1500
 # electrode_number - the number of the electrode to extract the blinking vector from
 def extract_blinking_vector(data_path, session, p,  electrode_number, downsampleInMs=1, rms_size_ms=100):
@@ -47,6 +50,8 @@ def extract_blinking_component(data_path, session, p, downsample_window_in_ms=1,
     blinks_timing = EdfAnalyzer.getCallibrationTicks(chunks, "blink")
     vector_b = Y[:, blinks_timing[0]:blinks_timing[-1]]
     blinks_timing_corrected = remove_first_values_from_all_array_values(blinks_timing)
+    print("blinks timing: ", blinks_timing)
+    print("blinks timing corrected: ", blinks_timing_corrected)
     
     plotChunkData(vector_b, "Choose Blinking Component", blinks_timing_corrected)
     clearPlot()
@@ -62,24 +67,47 @@ def extract_blinking_component(data_path, session, p, downsample_window_in_ms=1,
     for t in blinks_timing_corrected:
         plt.axvline(x=t, color='r')
     plt.show()
-    clearPlot()
+    #clearPlot()
 
     return vector, chunks
 
-def main():
+# not in use for now
+# def extract_blink_from_vector(vector):
+#     """
+#     Extracts one blink from the vector
+#     Uses generic signal python functions to find the peaks of the blinks 
+#     Chooses the first blink and returns it with its duration (using find_blink_duration function)
+#     """
+#     peaks, _ = signal.find_peaks(vector, height=0.5)
+#     blinks_timing = find_blink_duration(vector, peaks)
+#     start_time = blinks_timing[0][1]
+#     end_time = blinks_timing[0][2]
+#     blink = vector[start_time:end_time]
+#     plt.figure(figsize=(9,5))
+#     plt.rcParams['font.size'] = '16'
+#     plt.xlabel("one blink", fontsize=16)
+#     plt.plot(blink)
+#     plt.show()
+#     return vector[start_time:end_time]
+
+
+def extract_main():
     # shoval, you can play with the windows values up to a point you smooth the signal enough but not too much.
     # too much = loosing valuable information.
     # 20ms ==> 50HZ
 
     sessions = GetSessions(data_path)
+    print(sessions)
     session = sessions[0]
 
     vector, chunks = extract_blinking_component(data_path, session, A, 20, 100)
-    vector_mean = np.mean(vector)
-    for key in chunks.keys():
-        chunk  =  chunks[key]
-        plt.plot(vector[int(chunk.Start.Time) : int(chunk.End.Time)])
-        plt.axhline(y=vector_mean, color='r', linestyle='-')
-        plt.title(key)
-        plt.show()
-        clearPlot()
+    # vector_mean = np.mean(vector)
+    # for key in chunks.keys():
+    #     chunk  =  chunks[key]
+    #     plt.plot(vector[int(chunk.Start.Time) : int(chunk.End.Time)])
+    #     plt.axhline(y=vector_mean, color='r', linestyle='-')
+    #     plt.title(key)
+    #     plt.show()
+    #     clearPlot()
+
+    return vector, chunks

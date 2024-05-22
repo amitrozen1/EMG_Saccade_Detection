@@ -1,13 +1,14 @@
 
 import numpy as np
 from General.init import *
-from General.CorrolationMethods import get_max_xcorr_2d, get_max_xcorr_1d
+from General.CorrolationMethods import get_max_xcorr_2d, get_max_xcorr_1d, get_max_pearson_xcorr_2d, get_max_xcorr_pearson_1d
 from matplotlib.colors import Normalize
 import seaborn as sns
 import matplotlib.pyplot as plt
 from General.PlotFunctions import savePlot, clearPlot
 from Analysis.analysis_runner import run_emg_analysis
 from General.HelperFunctions import stack_rows_with_pad
+from scipy.stats import zscore
 
 rms_size_ms = 100
 downsampleWindowInMs = 20
@@ -18,10 +19,10 @@ numOfPixelsForXCorrWindow = windowForCorrInMs//downsampleWindowInMs
 numOfPixelsForXCorrStep = (windowForCorrInMs//2) // downsampleWindowInMs
 
 def plot_heatmap(vectors, key, extratitle):
-    norm = Normalize(vmin=0, vmax=0.5)
-    sns.heatmap(vectors, norm=norm, cmap='viridis_r')
-    plt.xlabel("corr")
-    plt.ylabel("time")
+    vectors = zscore(vectors, axis=0)
+    sns.heatmap(vectors, cmap='viridis_r')
+    plt.xlabel("lag")
+    plt.ylabel("epoch")
     plt.title(f"{key}_{extratitle}")
     plt.show()
     clearPlot()
