@@ -114,22 +114,19 @@ class EdfAnalyzer:
         pass
     
     @staticmethod
-    def readEdf(f : pyedflib.EdfReader, doButter = True, forEEG = False):
+    def readEdf(f : pyedflib.EdfReader, doButter = True, forEEG = False, hard_noise_removal=False):
         sampling_rate = int(f.getSampleFrequency(0))
         n = 16
-        # num_sets = 1
-        # size_limit = int(f.getNSamples()[0] / num_sets)
-        # #read EDF
-        # sigbufs = np.zeros((n, size_limit))
-        # for i in np.arange(n):
-        #     sigbufs[i, :] = f.readSignal(i, start=0, n=size_limit)
-        
         sigbufs = np.array([f.readSignal(i) for i in range(0,n)])
         #Filter before ICA
         sigbufs = NotchFilterSignal(sigbufs, sampling_rate)
+
         if (doButter):
             if ( not forEEG):
-                sigbufs = butter_bandpass_filter(sigbufs, 20.0, 400.0, sampling_rate)
+                lower_bound = 20.0
+                if ( hard_noise_removal ):
+                    lower_bound = 50.0
+                sigbufs = butter_bandpass_filter(sigbufs, lower_bound, 400.0, sampling_rate)
             else:
                 sigbufs = butter_bandpass_filter(sigbufs, 0.5, 8.0, sampling_rate) #todo - check if this is good for EEG
         
@@ -158,6 +155,23 @@ class EdfAnalyzer:
     @staticmethod
     def getCallibrationTicks(chunks, calibration_state_to_analyze = "smile"):
         return GetCallibrationsTicks(chunks, calibration_state_to_analyze)
+
+
+    @staticmethod
+    def combine_callibration_ticks(chunks):
+        states = ["smile", "angry", "blink"]
+        for state in states:
+            start = chunks[state + "__0"].Start.Time
+            end = chunks[state + "__2"].End.Time
+            for i in range(3):
+                key = state + "__" + str(i)
+                del chunks[key]
+            chunks[state] = Chunk()
+            chunks[state].Start = Annotation()
+            chunks[state].Start.Time = start
+            chunks[state].End = Annotation()
+            chunks[state].End.Time = end
+        return chunks
 
     @staticmethod
     def getAnnotationChunks(f : pyedflib.EdfReader, correctBy, RmsDownsampleWindow = 1):

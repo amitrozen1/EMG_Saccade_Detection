@@ -52,6 +52,7 @@ def plot_chunk_data_one_tick_per_component(X, title, ticks = [], subtitles = Non
 
 def plotDataFromBothChunks(X1, X2, ticks1=[], ticks2=[], title="smiles", num_components = 16, saveAt="", importance_order=None):
     total_graph_size = (num_components*2,4)
+
     ticks1 = fixTicks(ticks1)
     ticks2 = fixTicks(ticks2)
     
@@ -97,4 +98,4 @@ def clearPlot():
     #plt.clf()
 
 def savePlot(path):
-    plt.savefig(path)
+    plt.savefig(path, bbox_inches='tight')

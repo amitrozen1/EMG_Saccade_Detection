@@ -18,7 +18,7 @@ import json
 from General.HelperFunctions import toFilePath, getPathsFromSessionFolder, log
 from SVM.InvestigateSvm import check_parameter_importance, GetElectrodeByComponentMappingByW
 from SVM.InnerClasses import SvmComponentWeight
-
+from General.HelperFunctions import remove_rows_from_matrix, get_review_data
 
 
 class UserChoice:
@@ -60,10 +60,12 @@ def cleanSpace():
     gc.collect()
     xp.get_default_memory_pool().free_all_blocks()
 
-def getSvmTypeString(isSvc):
+def getSvmTypeString(isSvc, downsample_window_in_ms):
     if ( isSvc):
-        return "svc"
-    return "svr"
+        start = "svc"
+    else:
+        start = "svr"
+    return f"{start}_{1000//downsample_window_in_ms}HZ"
 
 def getParticiapntString(particiapnt):
     if( particiapnt == 0):
@@ -101,21 +103,24 @@ states = ["smile", "angry", "blink"]
 A=0
 B=1
 
+downsample_window_in_ms = 20
 
-def PredictState(sessionId, workingDir = ".", isICA = True, RmsWindowSizeInMs = 50, stateToAnalyze="smile"):
+def PredictState(sessionId, workingDir = ".", isICA = True, RmsWindowSizeInMs = 100, stateToAnalyze="smile"):
     if ( workingDir!= "."):
         os.chdir(workingDir)
     
     userChoiceDict = readCsv(sessionId)
     paths = getPathsFromSessionFolder(sessionId)
+    elecs_to_remove, is_dark = get_review_data(sessionId, workingDir)
 
     for participant in [A,B]:
         path, correction = paths[participant]
-        cleanSpace()
+
         # ------------------- READ FILE ------------------- #
         log(f"reading {path}, correction: {correction}")
-        f = pyedflib.EdfReader(path)
-        Y, anotations_chunks, freq = EdfAnalyzer.Read(path, correction)
+        Y, anotations_chunks, freq = EdfAnalyzer.Read(path, correction, downsample_window_in_ms)
+        Y = remove_rows_from_matrix(Y, elecs_to_remove[participant])
+        num_components = num_channels - len(elecs_to_remove[participant])
         cleanSpace()
 
         # ------------------- INIT ------------------- #
@@ -140,16 +145,18 @@ def PredictState(sessionId, workingDir = ".", isICA = True, RmsWindowSizeInMs = 
         cleanSpace()
 
         # ------------------- RMS ------------------- #
-
+        log("RMS")
         x = EdfAnalyzer.window_rms(x, window_size_in_ms = RmsWindowSizeInMs)
-        # x = EdfAnalyzer.window_rms_downsample_no_cut(x, RmsWindowSizeInMs)
+        cleanSpace()
+
+        #------------------- Downsample ------------------- #
+        log("Downsample")
+        x = EdfAnalyzer.resample_by_averaging_every_n(x, downsample_window_in_ms, freq)
         cleanSpace()
         
         # ------------------- zscore ------------------- #
         log("zscore")
         x = xp.asarray(zscore(x,1))
-        # x = xp.asarray(x)
-        print(x.shape)
 
         # ------------------- divide to sets ------------------- #
         for state in states:
@@ -238,7 +245,7 @@ def PredictState(sessionId, workingDir = ".", isICA = True, RmsWindowSizeInMs = 
             # ------------------- Save Files ------------------- #
             resultsPath = os.path.dirname(path)
             resultsPath = os.path.join(resultsPath, stateToAnalyze)
-            resultsPath = os.path.join(resultsPath, getSvmTypeString(isSVC))
+            resultsPath = os.path.join(resultsPath, getSvmTypeString(isSVC, downsample_window_in_ms))
             if ( not os.path.exists(resultsPath)):
                 os.makedirs(resultsPath)
             
