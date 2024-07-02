@@ -100,6 +100,10 @@ def convert_patten_to_spike_train(sig, filter, fs, height=0.32):
     plt.xlabel("correlated signal", fontsize=16)
     plt.plot(corr)
     plt.show()
+
+    # asks the user to input the height of the peaks
+    height = input("Enter the height of the peaks: ")
+
     peaks = signal.find_peaks(corr, height=height)
     spike_train = np.zeros_like(t)
     spike_train[peaks[0]] = 1
