@@ -177,7 +177,7 @@ def read_data_from_file(session, plv_score=False, rated_blinks=False):
             rated_blinks_data = pkl.load(file)
     return data, plv_data, rated_blinks_data
 
-def main_all_sessions(data_path, PLV=True, rate_based=True, actual_sync):
+def main_all_sessions(data_path, actual_sync, PLV=True, rate_based=True):
     """
     Runs over all the sessions in the data and extracts the blinks of the participants
     for each session calculates the correlation between the blinks of the participants
