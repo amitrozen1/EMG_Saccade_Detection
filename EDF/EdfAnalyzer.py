@@ -250,8 +250,8 @@ class EdfAnalyzer:
         return emgData, chunks, freq, InertialData, InertialFreq
     
     @staticmethod
-    def ICA(matrix, n_components):
-        transformer = FastICA(n_components=n_components, random_state=0 )
+    def ICA(matrix, n_components, whiten=True):
+        transformer = FastICA(n_components=n_components, random_state=0, whiten=False)
         x= np.transpose(transformer.fit_transform(np.transpose(matrix))) #FAST ICA
         w = transformer.components_ #np.linalg.inv(transformer.mixing_) #transformer.components_ # np.dot(unmixing_matrix, self.whitening_)
         #K, W, X = picard(matrix, n_components=n_components, ortho=True, extended=True, max_iter=200)

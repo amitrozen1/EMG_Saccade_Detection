@@ -76,6 +76,8 @@ normalize_and_centralize_col <- function(column) {
 
 data <- read.csv("C:\\Liron\\DataEmg\\Try\\results_2024\\RMS_100_downsample_50_window_3_maxlag_3_after_decision_and_remove_artifacts_with_callibration_remove_zyg_for_read_no_arctan_nooverlap_with_RMS_of_corr_comp_VAR_listening_for_R_paired_ordered.csv")
 
+data <- read.csv("C:\\Liron\\DataEmg\\Try\\results_2024\\RMS_100_downsample_50_window_3_maxlag_3_after_decision_and_remove_artifacts_with_callibration_remove_zyg_for_read_no_arctan_nooverlap_with_mean_of_corr_comp_VAR_fixedlag_listening_for_R_paired_ordered.csv")
+
 data <- convert_to_factors(data, c("session", "choice_a","choice_b", "order_type", "pair_id", "chose_same", "is_other"))
 
 
@@ -283,7 +285,8 @@ summary(choice_model)
 
 
 # sum choice model:
-data <- read.csv("C:\\Liron\\DataEmg\\Try\\results_2024\\RMS_100_downsample_20_window_3_maxlag_2_after_decision_and_remove_artifacts_with_callibration_remove_zyg_for_read_no_arctan_nooverlap_with_mean_of_corr_comp_VAR.csv")
+#data <- read.csv("C:\\Liron\\DataEmg\\Try\\results_2024\\RMS_100_downsample_20_window_3_maxlag_2_after_decision_and_remove_artifacts_with_callibration_remove_zyg_for_read_no_arctan_nooverlap_with_mean_of_corr_comp_VAR.csv")
+data <- read.csv("C:\\Liron\\DataEmg\\Try\\results_2024\\RMS_100_downsample_50_window_3_maxlag_3_after_decision_and_remove_artifacts_with_callibration_remove_zyg_for_read_no_arctan_nooverlap_with_RMS_of_corr_comp_VAR.csv")
 data <- convert_to_factors(data, c("session", "isOther"))
 
 data = data[data$action == "Listening",]
@@ -329,12 +332,68 @@ data$sum_choice <- data$isChoiceA + data$isChoiceB
 data$sum_choice <- as.factor(data$sum_choice)
 
 # change ordinal meaning.
-glm_sum_choice <- glmer(sum_choice ~ 1 + chosen_max_comps_mean_corr + chosen_max_comps_mean_lag
+glm_sum_choice <- glm(sum_choice ~ 1 + chosen_max_comps_mean_corr + chosen_max_comps_mean_lag
                         #+ mean_Nose_A + mean_Nose_B
                         #+ mean_Zygomaticus_A + mean_Zygomaticus_B
                         #+ mean_Eye_A + mean_Eye_B
                         #+ mean_Corrugator_A + mean_Corrugator_B
-                        + (1 + chosen_max_comps_mean_corr + chosen_max_comps_mean_lag | session)
                        , data=data, family=poisson(link="log"))
 summary(glm_sum_choice)
 plot(allEffects(glm_sum_choice))
+
+
+
+
+
+
+
+# compare to actress:
+data <- read.csv("C:\\Liron\\DataEmg\\Try\\results_2024\\RMS_300_downsample_50_window_3_maxlag_3_after_decision_and_remove_artifacts_with_callibration_no_arctan_nooverlap_with_actress_compare_no_zyg_hardremove_listening_for_R_split_for_particiapnt.csv")
+data <- convert_to_factors(data, c("session", "choice", "order_type", "pair_id", "chose_same", "is_other"))
+
+data <- data[data$is_other == 0,]
+
+data$minus_corr <- create_minus_column_single_name(data,"chosen_comps_max_corr")
+data$minus_lag <- create_minus_column_single_name(data,"chosen_comps_max_lag")
+data$minus_actress_corr <- create_minus_column_single_name(data,"chosen_actress_max_corr")
+data$minus_actress_lag <- create_minus_column_single_name(data,"chosen_actress_max_lag")
+
+a <- data$chosen_comps_mean_corr_1 - data$chosen_actress_mean_corr_1
+b <- data$chosen_comps_mean_corr_2 - data$chosen_actress_mean_corr_2
+
+data$special_minus <- (a-b)/(a+b)
+
+data$minus_chosen_mean <- create_minus_column_single_name(data,"mean_chosen_max")
+
+for (muscle in c("Nose", "Eye", "Zygomaticus", "Corrugator"))
+{
+  data[[paste0("minus_",muscle)]] <- create_minus_column_single_name(data, paste0("mean_", muscle))
+}
+
+choice_model <- glm(choice ~ 1 + minus_corr + minus_lag + minus_chosen_mean, data=data, family=binomial(link = "logit"))
+summary(choice_model)
+
+data$minus_actress_lag = normalize_and_centralize_col(data$minus_actress_lag)
+data$minus_lag = normalize_and_centralize_col(data$minus_lag)
+data$minus_corr = normalize_and_centralize_col(data$minus_corr)
+data$minus_actress_corr = normalize_and_centralize_col(data$minus_actress_corr)
+
+actress_model <- glm(choice ~ 1 + 
+                     minus_corr + minus_actress_corr + minus_chosen_mean #+ minus_lag + minus_actress_lag
+                       #+ (1 + minus_corr + minus_actress_corr|is_other) + (1 + order_type||pair_id)
+                     , data=data, family=binomial(link = "logit"))
+summary(actress_model)
+plot(allEffects(actress_model))
+
+#max corr.
+
+muscle_model <- glm(choice ~ 1 + minus_Nose + minus_Eye + minus_Zygomaticus + minus_Corrugator, data=data, family=binomial(link = "logit"))
+summary(muscle_model)
+
+muscle_sync_model <- glm(choice ~ 1 + minus_Nose + minus_Eye + minus_Zygomaticus + minus_Corrugator + minus_corr + minus_lag, data=data, family=binomial(link = "logit"))
+summary(muscle_sync_model)
+
+nose_model <- glm(choice ~ 1 + minus_Nose, data=data, family=binomial(link = "logit"))
+summary(nose_model)
+plot(allEffects(nose_model))
+

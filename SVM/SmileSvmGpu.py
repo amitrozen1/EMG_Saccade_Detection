@@ -19,42 +19,8 @@ from General.HelperFunctions import toFilePath, getPathsFromSessionFolder, log
 from SVM.InvestigateSvm import check_parameter_importance, GetElectrodeByComponentMappingByW
 from SVM.InnerClasses import SvmComponentWeight
 from General.HelperFunctions import remove_rows_from_matrix, get_review_data
+from General.Experiment_CSV import read_experiment_csv
 
-
-class UserChoice:
-    def __init__(self, story1, story2, choiceA, choiceB, rtA, rtB, isOther) -> None:
-        self.story1 = story1
-        self.story2 = story2
-        self.choiceA = choiceA
-        self.choiceB = choiceB
-        self.rtA = rtA
-        self.rtB = rtB
-        self.isOther = isOther
-    
-    def __str__(self):
-        return f"story1 : {self.story1}, story2:{self.story2}, choiceA:{self.choiceA}, choiceB:{self.choiceB}, rtA:{self.rtA}, rtB:{self.rtB}, isOther:{self.isOther}"
-        
-def GenerateUserChoice(df, i):
-    s1 = str(df["StoryOrder1"][i])
-    s2 = str(df["StoryOrder2"][i])
-    choiceA = int(df["UserANumberChoice"][i])
-    choiceB = int(df["UserBNumberChoice"][i])
-    rtA = str(df["UserA_choice.rt"][i])
-    rtB = str(df["UserB_choice.rt"][i])
-    isOther = "other" in str(df["AudioInstruction"][i]).lower()
-    return UserChoice(s1, s2, choiceA, choiceB, rtA, rtB,isOther)
-
-def readCsv(sessionsId):
-    userChoiceDict = dict()
-    fname = [x for x in os.listdir(sessionsId) if x.endswith(".csv")][0]
-    csvPath = toFilePath(sessionsId, fname)
-    df = pd.read_csv(csvPath)
-    storyIndexes = np.where(df["trialId"].notnull())[0]
-    for i in storyIndexes:
-        uc = GenerateUserChoice(df, i)
-        key = f"{uc.story1.split('.')[1].lower()}_{int(df['trialId'][i])}"
-        userChoiceDict[key] = uc
-    return userChoiceDict
 
 def cleanSpace():
     gc.collect()
@@ -109,7 +75,7 @@ def PredictState(sessionId, workingDir = ".", isICA = True, RmsWindowSizeInMs = 
     if ( workingDir!= "."):
         os.chdir(workingDir)
     
-    userChoiceDict = readCsv(sessionId)
+    userChoiceDict = read_experiment_csv(sessionId)
     paths = getPathsFromSessionFolder(sessionId)
     elecs_to_remove, is_dark = get_review_data(sessionId, workingDir)
 

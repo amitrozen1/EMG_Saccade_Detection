@@ -10,8 +10,7 @@ import pyedflib
 from General.PlotFunctions import plotChunkData
 from dataclasses import dataclass
 
-rms_size_ms = 100
-downsampleWindowInMs = 50
+
 edf_path = r"C:\Liron\neuroscience\PHD\First year experiment - EMG\StoriesFromActress\EDF\1_Recording_00_SD.edf"
 image_path = r"C:\Liron\neuroscience\PHD\First year experiment - EMG\StoriesFromActress\img_cropped_mirror.png"
 correct_value = -0.5 # the correct value is just a random RT value as I did not find a way to get the reall correct value.
@@ -21,7 +20,11 @@ correct_value = -0.5 # the correct value is just a random RT value as I did not 
 def get_folder_path(p=edf_path):
     return os.path.dirname(p)
 
-def open_w_if_exisis():
+def open_w_if_exisis(hard=False):
+    if hard:
+        name = "w_hard.npy"
+    else:
+        name = "w.npy"
     try:
         #get folder path from the edf path:
         return np.load(os.path.join(get_folder_path(), "w.npy"))
@@ -39,7 +42,7 @@ def extract_story_number(annotation):
     s = str(annotation).lower()
     return int(s.split("_")[1])
 
-def extract_story_name(annotation):
+def parse_annotation(annotation):
     s = str(annotation).lower()
     #regex to extarct 15 and "start" from : "story_Slide15.PNG_start"
     s = s[len("story_slide"):]
@@ -50,10 +53,11 @@ def extract_story_name(annotation):
     return story_number, annotation_type
 
 @dataclass
-class MyChunk:
-    name: str
+class ActressChunk:
+    story_number: str
     start: int
     end: int
+    data: np.ndarray = None
 
 def read_annotations(f, freq, downsampleWindowInMs, correction):
     annotations = f.readAnnotations()
@@ -66,57 +70,90 @@ def read_annotations(f, freq, downsampleWindowInMs, correction):
             timing = (timing * freq)/(4*downsampleWindowInMs) # 4 because original freq is 4000
             timing = int(timing)
 
-            story_number, annotation_type = extract_story_name(anotation[2])
+            story_number, annotation_type = parse_annotation(anotation[2])
             if ( annotation_type == "start"):
-                chunks.append(MyChunk(story_number, timing, -1))
+                chunks.append(ActressChunk(story_number, timing, -1))
             if ( annotation_type == "end"):
                 chunks[-1].end = timing
     return chunks
 
 
-def main():
+def get_listening_stories():
+    return [10, 5, 12, 6, 11, 3, 8, 16]
+
+#todo : 
+# 1. check for better filtering for the data.
+# 2. choose best components in that case.
+
+def export_actress_chunked_data(downsampleWindowInMs=20, rms_size_ms=100, hard_noise_removal = False):
     f = pyedflib.EdfReader(edf_path)
-    Y, freq = EdfAnalyzer.readEdf(f, True, False, hard_noise_removal=True)
+    Y, freq = EdfAnalyzer.readEdf(f, True, False, hard_noise_removal=hard_noise_removal)
 
     chunks = read_annotations(f, freq, downsampleWindowInMs, correct_value)
 
-    #Y = remove_rows_from_matrix(Y, elecs_to_remove)
+    chosen_chunk_numbers = get_listening_stories()
+    chunks = [chunk for chunk in chunks if int(chunk.story_number) in chosen_chunk_numbers]
+
+    chunks_as_dict = {}
+    for chunk in chunks:
+        #taking the last instance:
+        chunks_as_dict[chunk.story_number] = chunk
+
+    for key in chunks_as_dict:
+        print(f"{key}: len: {(chunks_as_dict[key].end - chunks_as_dict[key].start)*downsampleWindowInMs/1000}")
+
     Y = zscore(Y, axis=1)
 
-    w = open_w_if_exisis()
+    w = open_w_if_exisis(hard_noise_removal)
     if w is None:
         w, independentComponents = EdfAnalyzer.ICA(Y, 16) #-len(elecs_to_remove))
         save_w(w)
     else:
         independentComponents = np.dot(w, Y)
 
+    #plot the heatmap
+    #default_heatmap_with_channels_removal(w, elecs_to_remove)
+    #get_heatmap(image_path, 16, w)
+
+    #please insrt the special components indexes here:
+    #str_input = input("Please insert the special components indexes here and press enter")
+    #special_components_indexes = [int(x) for x in str_input.split(" ")]
+    #1-based before 50hz + :
+    
+    if hard_noise_removal:
+        special_components_indexes = [4, 16, 8, 15]
+    else:
+        special_components_indexes = [13, 6, 8, 15]
+
+    #0-based:
+    special_components_indexes = [x-1 for x in special_components_indexes]
+
+    independentComponents = independentComponents[special_components_indexes, :]
+
     independentComponents = remove_emg_artifacts(independentComponents)
     independentComponents = EdfAnalyzer.window_rms(independentComponents, rms_size_ms, freq)
     independentComponents = EdfAnalyzer.resample_by_averaging_every_n(independentComponents, downsampleWindowInMs, freq)
 
-    #plot the heatmap
-    #default_heatmap_with_channels_removal(w, elecs_to_remove)
-    #get_heatmap(image_path, 16, w)
-    #1-based before 50hz + :
-    #special_components_indexes = [13,6,8,15]
-    #1-based after 50hz + :
-    special_components_indexes = [4, 16, 8, 13]
-    #0-based:
-    special_components_indexes = [x-1 for x in special_components_indexes]
-
     special_max = np.max(independentComponents, axis=0)
     independentComponents = np.vstack((independentComponents, special_max))
 
-    #plot the special components:
-    titles = get_special_component_names() + ["max"]
-    #toPlot = independentComponents[ : , chunks[0].start:chunks[0].end]
-    toPlot = independentComponents
-    ticks = []
-    for chunk in chunks:
-        ticks.append(chunk.start)
-        ticks.append(chunk.end)
+
+    for key in chunks_as_dict:
+        chunk = chunks_as_dict[key]
+        chunks_as_dict[key].data = independentComponents[:, chunk.start:chunk.end]
     
-    plotChunkData(toPlot, "actrss", ticks, titles, num_components=5, show=True)
+    return chunks_as_dict
+
+    # #plot the special components:
+    # titles = get_special_component_names() + ["max"]
+    # #toPlot = independentComponents[ : , chunks[0].start:chunks[0].end]
+    # toPlot = independentComponents
+    # ticks = []
+    # for chunk in chunks:
+    #     ticks.append(chunk.start)
+    #     ticks.append(chunk.end)
+    
+    # plotChunkData(toPlot, "actrss", ticks, titles, num_components=5, show=True)
     
 
 

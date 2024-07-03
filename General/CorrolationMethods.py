@@ -214,7 +214,7 @@ def get_max_xcorr_2d(mat1, mat2, tMaxMs, downsample_window_ms, s, e, state="list
 
     max_corr = xcorr_vec[0][argmax] / (mat2.shape[0]*mat2.shape[1])
     
-    max_ind = s1 - s + argmax*downsample_window_ms
+    max_ind = (s1 - s + argmax)*downsample_window_ms
     
     if shouldReturnXcorrVec:
         return xcorr_vec
@@ -298,7 +298,7 @@ def get_max_xcorr_1d(mat1, mat2, tMaxMs, downsample_window_ms, s, e, state="list
     return max_corr, max_ind
 
 
-def get_max_pearson_xcorr_2d(mat1, mat2, tMaxMs, downsample_window_ms, s, e, state="listen", shouldReturnXcorrVec=False):
+def get_max_pearson_xcorr_2d(mat1, mat2, tMaxMs, downsample_window_ms, s, e, state="listen", shouldReturnXcorrVec=False, max_ver=False):
     tMax = tMaxMs // downsample_window_ms
     s1 = 0
     if "read" in state.lower():
@@ -327,8 +327,12 @@ def get_max_pearson_xcorr_2d(mat1, mat2, tMaxMs, downsample_window_ms, s, e, sta
                 if not np.isnan(corr):  # Skip NaN results, which occur if there's no variance
                     temp_corrs.append(corr)
         if temp_corrs:  # Ensure there are correlations to mean
-            mean_corr = np.mean(temp_corrs)
-            correlations.append((mean_corr, shift))
+            if ( max_ver ):
+                all_rows_corr = max(temp_corrs)
+            else:
+                all_rows_corr = np.mean(temp_corrs)
+            
+            correlations.append((all_rows_corr, shift))
     
     if shouldReturnXcorrVec:
         return [x[0] for x in correlations]
@@ -339,7 +343,8 @@ def get_max_pearson_xcorr_2d(mat1, mat2, tMaxMs, downsample_window_ms, s, e, sta
     else:
         return None, None  # No valid correlations found
     
-    max_ind = s1 - s + best_shift * downsample_window_ms
+    #max_ind = s1 - s + best_shift * downsample_window_ms
+    max_ind = np.abs(s1 - s + best_shift) * downsample_window_ms
     return max_corr, max_ind
 
 
@@ -381,7 +386,8 @@ def get_max_xcorr_pearson_1d(mat1, mat2, tMaxMs, downsample_window_ms, s, e, sta
     if shouldReturnXcorrVec:
         return correlations
     
-    max_ind = s1 + max_ind * downsample_window_ms
+    #old and fault : max_ind = s1 + max_ind * downsample_window_ms
+    max_ind = np.abs(s1 - s + max_ind) * downsample_window_ms
 
     return max_corr, max_ind
 

@@ -174,7 +174,7 @@ def regex_split_to_numbers_with_all_possible_seprators(s):
 def get_review_data(session, data_path):
     global review_df
     if review_df is None:
-        review_df = pd.read_csv(os.path.join(data_path, "batch1_review.csv"))
+        review_df = pd.read_csv(os.path.join(data_path, "review.csv"))
     
     row = review_df[review_df["session_name"] == session]
     bad_electrodes = [row[f"bad_electrodes_{p}"].values[0] for p in ["A", "B"]]

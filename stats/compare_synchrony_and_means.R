@@ -206,7 +206,7 @@ data$minus_lag_var <- normalize_and_centralize_col(data$minus_lag_var)
 
 
 #model of mean and var corr:
-corr_glm <- glm(ListenerChoice ~ 1 + minus_corr + minus_cor_var + minus_lag + minus_lag_var, data=data, family=binomial(link = "logit"))
+corr_glm <- glm(ListenerChoice ~ 1 + minus_corr + minus_lag + minus_corr*minus_lag , data=data, family=binomial(link = "logit"))
 summary(corr_glm)
 plot(allEffects(corr_glm))
 

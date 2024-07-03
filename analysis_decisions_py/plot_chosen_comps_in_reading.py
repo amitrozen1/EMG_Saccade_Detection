@@ -16,10 +16,11 @@ import matplotlib.pyplot as plt
 from General.PlotFunctions import plotDataFromBothChunks, clearPlot
 from General.tam.tam_correlation import tam_corr
 from analysis_decisions_py.cleaning_signal import remove_emg_artifacts
-
+from Hilas_component_classification.classifying_ica_components import wavelet_denoising, whiten, center
+from ComponentAnalysis.ReviewComponents_batch2 import get_chosen_comps
 
 default_rms_size_ms = 400
-default_downsample_in_ms = 50 # 50 hz
+default_downsample_in_ms = 100 # 50 hz
 
 SMILE = 0
 ANGRY = 1
@@ -36,15 +37,21 @@ def load_first_reading_data(session, p, rms_size_ms = default_rms_size_ms, downs
     path_and_corrections = getPathsFromSessionFolder(os.path.join(data_path, session))
     Y, chunks, freq = EdfAnalyzer.Read(path_and_corrections[p][0], path_and_corrections[p][1], downsample_window_ms)
     elecs_to_remove, is_dark = get_review_data(session, data_path)
-    
+    #elecs_to_remove = [[], []]
     Y = remove_rows_from_matrix(Y, elecs_to_remove[p])
     Y = zscore(Y, axis=1)
 
-    w = open_w_if_exisis(session, p)
+    #Y = wavelet_denoising(Y, freq, 'db4')
+    #Y = zscore(Y, axis=1)
+    #Y, _ = center(Y)
+    #Y = whiten(Y) #no whiten again.
+
+
+    w = open_w_if_exisis(session, p, dwt=False)
     
     if ( w is None):
         w, independentComponents = EdfAnalyzer.ICA(Y, 16-len(elecs_to_remove[p]))
-        save_new_w(session, p, w)
+        #save_new_w(session, p, w)
     else:
         independentComponents = np.dot(w, Y)
 
@@ -52,31 +59,61 @@ def load_first_reading_data(session, p, rms_size_ms = default_rms_size_ms, downs
     if (special_comps_index is None):
         special_comps_index = get_special_component_indexes(w, elecs_to_remove[p])
 
+    #special_comps_index = get_chosen_comps(session, p)
+
     independentComponents = independentComponents[special_comps_index, :]
     independentComponents = remove_emg_artifacts(independentComponents)
     independentComponents = EdfAnalyzer.window_rms(independentComponents, rms_size_ms, freq)
     independentComponents = EdfAnalyzer.resample_by_averaging_every_n(independentComponents, downsample_window_ms, freq)
 
+    chunks = EdfAnalyzer.combine_callibration_ticks(chunks)
     #get first reading chunk:
     for key in chunks:
         action = key.split("_")[0].lower()
 
+        if "smile" in action:
+            smile_s = int(chunks[key].Start.Time)
+            smile_e = int(chunks[key].End.Time)
+        
+        if "angry" in action:
+            angry_s = int(chunks[key].Start.Time)
+            angry_e = int(chunks[key].End.Time)
+        
+        if "blink" in action:
+            blink_s = int(chunks[key].Start.Time)
+            blink_e = int(chunks[key].End.Time)
+
         if "reading" in action:
             reading_s = int(chunks[key].Start.Time)
             reading_e = int(chunks[key].End.Time)
-            break
+            
 
+
+    smile_data = independentComponents[:, smile_s:smile_e]
+    angry_data = independentComponents[:, angry_s:angry_e]
+    blink_data = independentComponents[:, blink_s:blink_e]
     reading_data = independentComponents[:, reading_s:reading_e]
-    return reading_data
+    return smile_data, angry_data, blink_data, reading_data
 
-def plot(data_a, data_b):
-    plotDataFromBothChunks(data_a, data_b, [], [], "reading", 4)
+def plot(data_a, data_b, title):
+    plotDataFromBothChunks(data_a, data_b, [], [], title, 4)
     clearPlot()
 
-def main():
-    sessions_list = GetSessions(data_path)
+def main_plot_read():
+    sessions_list = ["06122022_1215"] #GetSessions(data_path)
     for session in tqdm(sessions_list):
-        data = [[],[]]
+        smiles = [[],[]]
+        angrys = [[],[]]
+        blinks = [[],[]]
+        readings = [[],[]]
         for p in [A,B]:
-            data[p] = load_first_reading_data(session, p)
-        plot(data[A], data[B])
+            smile_data, angry_data, blink_data, reading_data = load_first_reading_data(session, p)
+            smiles[p] = smile_data
+            angrys[p] = angry_data
+            blinks[p] = blink_data
+            readings[p] = reading_data
+        
+        plot(smiles[A], smiles[B], f"Smile {session}")
+        plot(angrys[A], angrys[B], f"Angry {session}")
+        plot(blinks[A], blinks[B], f"Blink {session}")
+        plot(readings[A], readings[B], f"Reading {session}")

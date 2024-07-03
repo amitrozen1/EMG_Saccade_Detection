@@ -1,0 +1,15 @@
+Story 3 duration: total: 75.45 minutes: 1.2575 seconds: 15.450000000000003
+Story 5 duration: total: 66.6 minutes: 1.1099999999999999 seconds: 6.599999999999994
+Story 6 duration: total: 76.1 minutes: 1.2683333333333333 seconds: 16.099999999999994
+Story 8 duration: total: 99.0 minutes: 1.65 seconds: 39.0
+Story 10 duration: total: 79.85 minutes: 1.3308333333333333 seconds: 19.849999999999994
+Story 11 duration: total: 71.15 minutes: 1.1858333333333335 seconds: 11.150000000000006
+Story 12 duration: total: 87.25 minutes: 1.4541666666666666 seconds: 27.25
+Story 16 duration: total: 83.7 minutes: 1.395 seconds: 23.700000000000003
+Story 3 duration: total: 77.9 minutes: 1.2983333333333333 seconds: 17.900000000000006
+Story 6 duration: total: 78.1 minutes: 1.3016666666666665 seconds: 18.099999999999994
+Story 8 duration: total: 103.9 minutes: 1.7316666666666667 seconds: 43.900000000000006
+Story 10 duration: total: 82.0 minutes: 1.3666666666666667 seconds: 22.0
+Story 12 duration: total: 67.75 minutes: 1.1291666666666667 seconds: 7.75
+Story 16 duration: total: 71.7 minutes: 1.195 seconds: 11.700000000000003
+Story 6 duration: total: 76.2 minutes: 1.27 seconds: 16.200000000000003

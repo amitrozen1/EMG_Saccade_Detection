@@ -97,5 +97,9 @@ def clearPlot():
     plt.cla()
     #plt.clf()
 
+import os
+
 def savePlot(path):
+    if os.path.isfile(path):
+        os.remove(path)
     plt.savefig(path, bbox_inches='tight')
