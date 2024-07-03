@@ -11,7 +11,7 @@ def blink_peaks_detect(one_blink, blinking_component_signal, height=0.32):
     # to do: instead of getting one blink, find a blink (using extract_blink_from_vector) 
     # blink = extract_blink_from_vector(blinking_component_signal)
     
-    win1 = create_filter(one_blink, 4)
+    win1 = one_blink #create_filter(one_blink, 4)
     spike_train = convert_patten_to_spike_train(blinking_component_signal, win1, 4000, height=height)
 
     binary_blinks_list = []
@@ -102,7 +102,7 @@ def convert_patten_to_spike_train(sig, filter, fs, height=0.32):
     plt.show()
 
     # asks the user to input the height of the peaks
-    height = input("Enter the height of the peaks: ")
+    height = float(input("Enter the height of the peaks: "))
 
     peaks = signal.find_peaks(corr, height=height)
     spike_train = np.zeros_like(t)

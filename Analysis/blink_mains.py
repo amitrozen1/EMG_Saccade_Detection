@@ -20,7 +20,7 @@ def extract_blinks_from_chunck(chunks, blink_component, participant_blink, A):
     participant_blink_filter = create_filter(participant_blink, 4)
     blink_in_chunks = {}
     if A=='A':
-        height = 0.2
+        height = 0.32
     else:
         height = 0.28
     for key in chunks.keys():
@@ -62,11 +62,21 @@ def extract_blinks_2_participants_main(data_path):
     
     return blinks_in_chunks_A, blinks_in_chunks_B
 
+def get_output_folder():
+    """
+    Returns the path to the output folder
+    """
+    folder = 'General/blinkingGraphsAndData'
+    if os.path.exists(folder) == False:
+        os.makedirs(folder)
+    return folder
+
+
 def save_data_to_file(data, file_name):
     """
     Saves the data to a file under the folder 'blinkingGraphsAndData'
     """
-    directory = 'General/blinkingGraphsAndData'
+    directory = get_output_folder()
     file_path = os.path.join(directory, file_name)
     with open(file_path, 'wb') as file:
         pkl.dump(data, file)
@@ -75,7 +85,7 @@ def save_graphs_to_file(graph, file_name):
     """
     Saves the graph to a file under the folder 'blinkingGraphsAndData'
     """
-    directory = 'General/blinkingGraphsAndData'
+    directory = get_output_folder()
     file_path = os.path.join(directory, file_name)
     graph.savefig(file_path)
 
@@ -103,15 +113,16 @@ def save_blink_as_a_graph(blink, file_name, A_or_B=None):
     """
     Saves the blink as a graph
     """
-    plt.figure(figsize=(9,5))
+    fig, ax = plt.subplots(figsize=(9,5))
     plt.rcParams['font.size'] = '16'
     if A_or_B == 'A':
-        plt.xlabel("one blink A", fontsize=16)
+        ax.set_xlabel("one blink A", fontsize=16)
     elif A_or_B == 'B':
-        plt.xlabel("one blink B", fontsize=16)
+        ax.set_xlabel("one blink B", fontsize=16)
     else:
-        plt.xlabel("one blink", fontsize=16)
-    save_graphs_to_file(plt.plot(blink), file_name)
+        ax.set_xlabel("one blink", fontsize=16)
+    ax.plot(blink)
+    save_graphs_to_file(fig, file_name)
 
 def run_over_all_sessions(data_path, PLV=True, rate_based=True):
     """
@@ -119,7 +130,7 @@ def run_over_all_sessions(data_path, PLV=True, rate_based=True):
     for each session calculates the correlation between the blinks of the participants
     saves the data (blinks and vectors) and different correlation graphs (plv and rate based) to files under the folder 'blinkingGraphsAndData'
     """
-    sessions = GetSessions(data_path)
+    sessions = GetSessions(data_path)[0:1]
     for session in sessions:
         one_blink_A, one_blink_B, vectorA, vectorB, chunksA, chunksB = extract_blink_and_data_from_participants(data_path, session)
         save_blink_as_a_graph(one_blink_A, 'one_blink_A_session_' + session + '.png', 'A')
@@ -162,7 +173,7 @@ def read_data_from_file(session, plv_score=False, rated_blinks=False):
     param plv_score - if True, reads the plv scores of the session
     param rated_blinks - if True, reads the rated blinks scores of the session
     """
-    directory = 'General/blinkingGraphsAndData'
+    directory = get_output_folder()
     file_name = 'data_session_' + session + '.pkl'
     file_path = os.path.join(directory, file_name)
     plv_data = None
@@ -232,22 +243,36 @@ def main():
         one_blink_B = data['one_blink_B']
         vectorA = data['vectorA']
         vectorB = data['vectorB']
+    
 
-    # one_blink_A = mark_blink_out_of_signal(vectorA)
-    # one_blink_B = mark_blink_out_of_signal(vectorB)
+    s = chunksA["blink__0"].Start.Time
+    e = chunksA["blink__0"].End.Time
 
-    # blink_in_chunks_A = extract_blinks_from_chunck(chunksA, vectorA, one_blink_A, 'A')
-    # blink_in_chunks_B = extract_blinks_from_chunck(chunksB, vectorB, one_blink_B, 'B')
+    signal_A_for_identify = vectorA[int(s):int(e)]
 
-    # # Saving the data to another file
-    # with open('blinks_in_chunks_A_B.pkl', 'wb') as file:
-    #     pkl.dump({'blink_in_chunks_A': blink_in_chunks_A, 'blink_in_chunks_B': blink_in_chunks_B}, file)
+    s = chunksB["blink__0"].Start.Time
+    e = chunksB["blink__0"].End.Time
+
+    signal_B_for_identify = vectorB[int(s):int(e)]
+
+    one_blink_A = mark_blink_out_of_signal(signal_A_for_identify)
+    one_blink_B = mark_blink_out_of_signal(signal_B_for_identify)
+
+    blink_in_chunks_A = extract_blinks_from_chunck(chunksA, vectorA, one_blink_A, 'A')
+    blink_in_chunks_B = extract_blinks_from_chunck(chunksB, vectorB, one_blink_B, 'B')
+
+    # Saving the data to another file
+    with open('blinks_in_chunks_A_B.pkl', 'wb') as file:
+        pkl.dump({'blink_in_chunks_A': blink_in_chunks_A, 'blink_in_chunks_B': blink_in_chunks_B}, file)
 
     # Getting back the objects:
     with open('blinks_in_chunks_A_B.pkl', 'rb') as file:
         data = pkl.load(file)
         blink_in_chunks_A = data['blink_in_chunks_A']
         blink_in_chunks_B = data['blink_in_chunks_B']
+
+    save_blink_as_a_graph(one_blink_A, 'one_blink_A.png', 'A')
+    save_blink_as_a_graph(one_blink_B, 'one_blink_B.png', 'B')
 
     plv_scores = []
     for key in blink_in_chunks_A.keys():
