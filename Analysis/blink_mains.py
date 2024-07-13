@@ -7,9 +7,7 @@ from Analysis.blink_t_test import *
 
 import pickle as pkl
 
-
-
-def extract_blinks_from_chunck(chunks, blink_component, participant_blink, A):
+def extract_blinks_from_chunck(chunks, blink_component, participant_blink, A, height):
     """
     Extracts the blinks from a chunk - from all 8 periods of 'reading'
     chunk - a dictionary with the chunk's data (start time, end time, data)
@@ -19,19 +17,17 @@ def extract_blinks_from_chunck(chunks, blink_component, participant_blink, A):
     """
     participant_blink_filter = create_filter(participant_blink, 4)
     blink_in_chunks = {}
-    if A=='A':
-        height = 0.32
-    else:
-        height = 0.28
+    Flag = True
     for key in chunks.keys():
         if 'Reading' in key:
             start_time = chunks[key].Start.Time
             end_time = chunks[key].End.Time 
             data = blink_component[int(start_time):int(end_time)]
-            blink_spike_train = blink_peaks_detect(participant_blink_filter, data, height=height)
+            blink_spike_train, height1 = blink_peaks_detect(participant_blink_filter, data, height, Flag)
             blink_in_chunks[key] = blink_spike_train
+            Flag = False
 
-    return blink_in_chunks
+    return blink_in_chunks, height1
 
 def extract_blink_and_data_from_participants(data_path, session):
     """
@@ -44,8 +40,16 @@ def extract_blink_and_data_from_participants(data_path, session):
     vectorB, chunksB = extract_blinking_component(data_path, session, B, 20, 100)
     print("finished B")
 
-    one_blink_A = mark_blink_out_of_signal(vectorA)
-    one_blink_B = mark_blink_out_of_signal(vectorB)
+    s1 = chunksA["blink__0"].Start.Time
+    e1 = chunksA["blink__0"].End.Time
+    signal_A_for_identify = vectorA[int(s1):int(e1)]
+
+    s2 = chunksB["blink__0"].Start.Time
+    e2 = chunksB["blink__0"].End.Time
+    signal_B_for_identify = vectorB[int(s2):int(e2)]
+    
+    one_blink_A = mark_blink_out_of_signal(signal_A_for_identify)
+    one_blink_B = mark_blink_out_of_signal(signal_B_for_identify)
 
     return one_blink_A, one_blink_B, vectorA, vectorB, chunksA, chunksB
 
@@ -130,21 +134,25 @@ def run_over_all_sessions(data_path, PLV=True, rate_based=True):
     for each session calculates the correlation between the blinks of the participants
     saves the data (blinks and vectors) and different correlation graphs (plv and rate based) to files under the folder 'blinkingGraphsAndData'
     """
-    sessions = GetSessions(data_path)[0:1]
+    sessions = GetSessions(data_path)
+    heightA = 0.25
+    heightB = 0.25
     for session in sessions:
         one_blink_A, one_blink_B, vectorA, vectorB, chunksA, chunksB = extract_blink_and_data_from_participants(data_path, session)
         save_blink_as_a_graph(one_blink_A, 'one_blink_A_session_' + session + '.png', 'A')
         save_blink_as_a_graph(one_blink_B, 'one_blink_B_session_' + session + '.png', 'B')
         
-        blinks_in_chunks_A = extract_blinks_from_chunck(chunksA, vectorA, one_blink_A, 'A')
-        blinks_in_chunks_B = extract_blinks_from_chunck(chunksB, vectorB, one_blink_B, 'B')
+        blinks_in_chunks_A, heightA = extract_blinks_from_chunck(chunksA, vectorA, one_blink_A, 'A', heightA)
+        blinks_in_chunks_B, heightB = extract_blinks_from_chunck(chunksB, vectorB, one_blink_B, 'B', heightB)
         save_data_to_file({'vectorA': vectorA, 'vectorB': vectorB, 'blinks_in_chunks_A': blinks_in_chunks_A, 'blinks_in_chunks_B': blinks_in_chunks_B}, 'data_session_' + session + '.pkl')
-        
+
         if PLV:
             plv_scores = []
             for key in blinks_in_chunks_A.keys():
                 a_blinks = blinks_in_chunks_A[key]
+                print("a_blinks: ", a_blinks)
                 b_blinks = blinks_in_chunks_B[key]
+                print("b_blinks: ", b_blinks)
                 plv_score = blink_correlation_phase_based(a_blinks, b_blinks)
                 plv_scores.append(plv_score)
 
@@ -178,17 +186,56 @@ def read_data_from_file(session, plv_score=False, rated_blinks=False):
     file_path = os.path.join(directory, file_name)
     plv_data = None
     rated_blinks_data = None
+    directory = get_output_folder()
     with open(file_path, 'rb') as file:
         data = pkl.load(file)
     if plv_score:
-        with open('plv_scores_session_' + session + '.pkl', 'rb') as file:
+        path1 = os.path.join(directory, 'plv_scores_session_' + session + '.pkl')
+        with open(path1, 'rb') as file:
             plv_data = pkl.load(file)
     if rated_blinks:
-        with open('rated_blinks_session_' + session + '.pkl', 'rb') as file:
+        path2 = os.path.join(directory, 'rated_blinks_session_' + session + '.pkl')
+        with open(path2, 'rb') as file:
             rated_blinks_data = pkl.load(file)
     return data, plv_data, rated_blinks_data
 
-def main_all_sessions(data_path, actual_sync, PLV=True, rate_based=True):
+def create_asynchronized_group_PLV_and_rate_based_scores(data_path):
+    """
+    creates a group of asynchronized sessions
+    from each two following sessions calculates the PLV score and rate_based scores of the two A participants
+    returns a list of PLV or rate-based scores of the asynchronized sessions
+    """
+    sessions = GetSessions(data_path)
+    plv_scores_asynchronized = []
+    rate_based_scores_asynchronized = []
+    for i in range(len(sessions) - 1):
+        data_1, plv_data1, rated_blinks_data1 = read_data_from_file(sessions[i])
+        data_2, plv_data2, rated_blinks_data2 = read_data_from_file(sessions[i+1])
+        A_1_blinks = data_1['blinks_in_chunks_A']
+        A_2_blinks = data_2['blinks_in_chunks_A']
+        plv_scores = []
+        rate_based_scores = []
+
+        for key in A_1_blinks.keys():
+            a1_blinks = A_1_blinks[key]
+            a2_blinks = A_2_blinks[key]
+            plv_score = blink_correlation_phase_based(a1_blinks, a2_blinks)
+            plv_scores.append(plv_score)
+            sigA1 = data_1['vectorA']
+            sigA2 = data_2['vectorA']
+            a1_blinks_duration = find_blink_duration(sigA1, a1_blinks)
+            a2_blinks_duration = find_blink_duration(sigA2, a2_blinks)
+            a1_rated_blinks = rate_blinks(a1_blinks_duration)
+            a2_rated_blinks = rate_blinks(a2_blinks_duration)
+            rated_blinks_score = blink_correlation_rate_based(a1_rated_blinks, a2_rated_blinks)
+            rate_based_scores.append(rated_blinks_score)
+        
+        plv_scores_asynchronized.append(plv_scores)
+        rate_based_scores_asynchronized.append(rate_based_scores)
+
+    return plv_scores_asynchronized, rate_based_scores_asynchronized 
+
+def main_all_sessions(data_path, PLV=True, rate_based=True):
     """
     Runs over all the sessions in the data and extracts the blinks of the participants
     for each session calculates the correlation between the blinks of the participants
@@ -198,7 +245,7 @@ def main_all_sessions(data_path, actual_sync, PLV=True, rate_based=True):
     
     # once (at the beginning)
     # don't forget to comment out the line below after the first run
-    run_over_all_sessions(data_path, PLV, rate_based) 
+    # run_over_all_sessions(data_path, PLV, rate_based) 
 
     # only after 'run_over_all_sessions' was executed, don't forget to comment out the line above
     sessions = GetSessions(data_path)
@@ -206,19 +253,32 @@ def main_all_sessions(data_path, actual_sync, PLV=True, rate_based=True):
     rated_blinks_scores_all = []
     for session in sessions:
         data, plv_scores, rated_blinks_scores = read_data_from_file(session, plv_score=True, rated_blinks=True)
-        plv_scores_all.append(plv_scores)
-        rated_blinks_scores_all.append(rated_blinks_scores)
-    
-    # for all session see which rate synchronization algorithm did better
-    t_score_plv, t_score_rate_based = calculate_t_scores(plv_scores_all, rated_blinks_scores_all, actual_sync)
-    print("t_score_plv: ", t_score_plv)
-    print("t_score_rate_based: ", t_score_rate_based)
-    
-    if t_score_plv > t_score_rate_based:
-        print("The PLV algorithm is better")
-    else:
-        print("The rate-based algorithm is better")
+        plv_scores_list = plv_scores['plv_scores']
+        plv_scores_all.append(plv_scores_list)
+        rated_blinks_scores_list = rated_blinks_scores['rated_blinks_scores']
+        rated_blinks_scores_all.append(rated_blinks_scores_list)
 
+    plv_scores_asynchronized, rate_based_scores_asynchronized = create_asynchronized_group_PLV_and_rate_based_scores(data_path)
+
+    plv_scores_all_ttest = []
+    rated_blinks_scores_all_ttest = []
+    plv_scores_asynchronized_ttest = []
+    rate_based_scores_asynchronized_ttest = []
+
+    # change each list of lists to one long list
+    for i in range(len(sessions)):
+        for j in range(len(plv_scores_all[i])):
+            plv_scores_all_ttest.append(plv_scores_all[i][j])
+        for j in range(len(rated_blinks_scores_all[i])):
+            rated_blinks_scores_all_ttest.append(rated_blinks_scores_all[i][j])
+    for i in range(len(sessions) - 1):
+        for j in range(len(plv_scores_asynchronized[i])):
+            plv_scores_asynchronized_ttest.append(plv_scores_asynchronized[i][j])
+        for j in range(len(rate_based_scores_asynchronized[i])):
+            rate_based_scores_asynchronized_ttest.append(rate_based_scores_asynchronized[i][j])
+   
+    t_score_plv, t_score_rate_based = PLV_vs_rate_based_ttest(plv_scores_all_ttest, rated_blinks_scores_all_ttest, plv_scores_asynchronized_ttest, rate_based_scores_asynchronized_ttest)
+    save_data_to_file({'t_score_plv': t_score_plv, 't_score_rate_based': t_score_rate_based}, 't_scores.pkl')
 
 def main():
     # blinks_in_chunks_A, blinks_in_chunks_B = extract_blinks_2_participants_main(data_path)
@@ -258,8 +318,11 @@ def main():
     one_blink_A = mark_blink_out_of_signal(signal_A_for_identify)
     one_blink_B = mark_blink_out_of_signal(signal_B_for_identify)
 
-    blink_in_chunks_A = extract_blinks_from_chunck(chunksA, vectorA, one_blink_A, 'A')
-    blink_in_chunks_B = extract_blinks_from_chunck(chunksB, vectorB, one_blink_B, 'B')
+    heightA = 0.25
+    heightB = 0.25
+
+    blink_in_chunks_A, heightA = extract_blinks_from_chunck(chunksA, vectorA, one_blink_A, 'A', heightA)
+    blink_in_chunks_B, heightB = extract_blinks_from_chunck(chunksB, vectorB, one_blink_B, 'B', heightB)
 
     # Saving the data to another file
     with open('blinks_in_chunks_A_B.pkl', 'wb') as file:
@@ -277,7 +340,9 @@ def main():
     plv_scores = []
     for key in blink_in_chunks_A.keys():
         a_blinks = blink_in_chunks_A[key]
+        print("a_blinks: ", a_blinks)
         b_blinks = blink_in_chunks_B[key]
+        print("b_blinks: ", b_blinks)
 
         plv_score = blink_correlation_phase_based(a_blinks, b_blinks)
         plv_scores.append(plv_score)
@@ -297,3 +362,29 @@ def main():
         rated_blinks_scores.append(rated_blinks_score)
 
     print("Rated blinks scores: ", rated_blinks_scores)
+
+def main_1():
+   sessions = GetSessions(data_path)
+   for session in sessions:
+        directory = get_output_folder()
+        name = 'data_session_' + session + '.pkl'
+        name = os.path.join(directory, name)
+        with open(name, 'rb') as file:
+            data = pkl.load(file)
+            vectorA = data['vectorA']
+            vectorB = data['vectorB']
+            blinks_in_chunks_A = data['blinks_in_chunks_A']
+            blinks_in_chunks_B = data['blinks_in_chunks_B']
+
+        plv_scores = []
+        for key in blinks_in_chunks_A.keys():
+            a_blinks = blinks_in_chunks_A[key]
+            print("a_blinks: ", a_blinks)
+            b_blinks = blinks_in_chunks_B[key]
+            print("b_blinks: ", b_blinks)
+            plv_score = blink_correlation_phase_based(a_blinks, b_blinks)
+            plv_scores.append(plv_score)
+
+        save_data_to_file({'plv_scores': plv_scores}, 'plv_scores_session_' + session + '.pkl')
+        save_graphs_to_file(plot_plv_scores(plv_scores, session), 'plv_' + session + '.png')
+            

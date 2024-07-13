@@ -3,16 +3,13 @@
 
 from Analysis.blinking_for_shoval import *
 
-def blink_peaks_detect(one_blink, blinking_component_signal, height=0.32):
+def blink_peaks_detect(one_blink, blinking_component_signal, height, Flag):
     """
         gets a filtered signal as input and a 'blink' to create a filter from
     returns a list consisnting all peaks that were detected as blinks in the filtered signal
     """
-    # to do: instead of getting one blink, find a blink (using extract_blink_from_vector) 
-    # blink = extract_blink_from_vector(blinking_component_signal)
-    
-    win1 = one_blink #create_filter(one_blink, 4)
-    spike_train = convert_patten_to_spike_train(blinking_component_signal, win1, 4000, height=height)
+    win1 = one_blink
+    spike_train, height1 = convert_patten_to_spike_train(blinking_component_signal, win1, 4000, height, Flag)
 
     binary_blinks_list = []
     
@@ -21,7 +18,7 @@ def blink_peaks_detect(one_blink, blinking_component_signal, height=0.32):
             binary_blinks_list.append(i)
     
     print("binary_blinks_list: ", binary_blinks_list)
-    return binary_blinks_list  
+    return binary_blinks_list, height1
 
 def create_filter(sig, fft_order):
     """
@@ -63,7 +60,7 @@ def norm_stand(sig):
     normalized_standardized_sig = (normalized_sig - mean) / std
     return normalized_standardized_sig
 
-def convert_patten_to_spike_train(sig, filter, fs, height=0.32):
+def convert_patten_to_spike_train(sig, filter, fs, height=0.3, Flag=False):
     """
         gets an EMG signal and a blinking pattern filter and converts the signal to a spike train of blinks
     :param sig: EMG signal of a participant
@@ -75,36 +72,42 @@ def convert_patten_to_spike_train(sig, filter, fs, height=0.32):
     # reduce moving mean from the signal in the length of filter
     # sig = sig[0:-len(filter)+1] - np.convolve(sig, np.ones(len(filter)) / len(filter), mode='valid')
     
-    #ploting the signal before normalization
-    plt.figure(figsize=(9,5))
-    plt.rcParams['font.size'] = '16'
-    plt.xlabel("signal before normalization", fontsize=16)
-    plt.plot(sig)
-    plt.show()
+    # #ploting the signal before normalization
+    # plt.figure(figsize=(9,5))
+    # plt.rcParams['font.size'] = '16'
+    # plt.xlabel("signal before normalization", fontsize=16)
+    # plt.plot(sig)
+    # plt.show()
     
     sig = norm_stand(sig)
     # sig = normalize_signal(sig)
 
-    # ploting the signal after normalization
-    plt.figure(figsize=(9,5))
-    plt.rcParams['font.size'] = '16'
-    plt.xlabel("signal after normalization", fontsize=16)
-    plt.plot(sig)
-    plt.show()
+    # # ploting the signal after normalization
+    # plt.figure(figsize=(9,5))
+    # plt.rcParams['font.size'] = '16'
+    # plt.xlabel("signal after normalization", fontsize=16)
+    # plt.plot(sig)
+    # plt.show()
 
     N = len(sig)
     t = np.linspace(1 / fs, N, N)
     corr = signal.correlate(sig, filter, mode='same') / len(filter)
-    plt.figure(figsize=(9,5))
-    plt.rcParams['font.size'] = '16'
-    plt.xlabel("correlated signal", fontsize=16)
-    plt.plot(corr)
-    plt.show()
+    if Flag == True:    
+        plt.figure(figsize=(9,5))
+        plt.rcParams['font.size'] = '16'
+        plt.xlabel("correlated signal", fontsize=16)
+        # positive corr - only the positive values of the correlation (above 0)
+        positive_corr = np.maximum(corr, 0)
+        avr = np.average(positive_corr)
+        plt.plot(corr)
+        plt.axhline(y=avr, color='r', linestyle='--')
+        plt.legend(["signal" ,"average"])
+        plt.show()
 
     # asks the user to input the height of the peaks
-    height = float(input("Enter the height of the peaks: "))
-
-    peaks = signal.find_peaks(corr, height=height)
+    if Flag == True:
+        height = float(input("Enter the height of the peaks: "))
+    peaks = signal.find_peaks(corr, height=height, distance=20)
     spike_train = np.zeros_like(t)
     spike_train[peaks[0]] = 1
     plt.figure(figsize=(8, 5))
@@ -117,6 +120,7 @@ def convert_patten_to_spike_train(sig, filter, fs, height=0.32):
     plt.close()
     plt.show()
     plt.close()
+    """
     plt.figure()
     plt.rcParams['font.size'] = '16'
     plt.xlabel("fs*sec peaksss", fontsize=14)
@@ -124,7 +128,8 @@ def convert_patten_to_spike_train(sig, filter, fs, height=0.32):
     plt.stem(t, spike_train)
     plt.show()
     plt.close()
-    return spike_train
+    """
+    return spike_train, height
 
 def find_blink_duration(signal, binary_blinks_list, threshold=0.05):
     """
@@ -132,7 +137,6 @@ def find_blink_duration(signal, binary_blinks_list, threshold=0.05):
     gets as input a list with the timing (binary, the begining of each blink) of the blinks in the signal and the signal
     :param threshold: the minimum difference between two minima to be considered still part of the blink
     """
-    # fix - thinks it gets the top of the blink and not the beginning
     window_length = 5
     blinks_duration = []
     end_threshold = 0.1

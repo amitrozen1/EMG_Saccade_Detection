@@ -24,7 +24,7 @@ def blink_correlation_rate_based(rated_blinks_participant1, rated_blinks_partici
 
             if abs(start_time_1[0] - start_time_2[0]) < delay:
                 if rate_based:
-                    total_matches += 1 - abs(rate1 - rate2)
+                    total_matches += (1 - abs(rate1 - rate2))*1 
                 else:
                     total_matches += 1
                 break
@@ -52,19 +52,23 @@ def blink_correlation_phase_based(blinks_participant1, blinks_participant2):
     phase2 = spike_times_to_phase(blinks_participant2)
     
     # Find common time base
-    min_time = min(min(blinks_participant1), min(blinks_participant2))
-    max_time = max(max(blinks_participant1), max(blinks_participant2))
-    common_time_base = np.linspace(min_time, max_time, max(len(blinks_participant1), len(blinks_participant2)))
+    if len(blinks_participant1) == 0 or len(blinks_participant2) == 0:
+        plv = 0
+        print("One of the participants has no blinks")
+    else:
+        min_time = min(min(blinks_participant1), min(blinks_participant2))
+        max_time = max(max(blinks_participant1), max(blinks_participant2))
+        common_time_base = np.linspace(min_time, max_time, max(len(blinks_participant1), len(blinks_participant2)))
     
-    # Interpolate phases to the common time base
-    phase1_interp = np.interp(common_time_base, blinks_participant1, phase1)
-    phase2_interp = np.interp(common_time_base, blinks_participant2, phase2)
+        # Interpolate phases to the common time base
+        phase1_interp = np.interp(common_time_base, blinks_participant1, phase1)
+        phase2_interp = np.interp(common_time_base, blinks_participant2, phase2)
     
-    # Calculate phase differences
-    phase_diff = np.exp(1j * (phase1_interp - phase2_interp))
+        # Calculate phase differences
+        phase_diff = np.exp(1j * (phase1_interp - phase2_interp))
     
-    # Calculate PLV
-    plv = np.abs(np.mean(phase_diff))
+        # Calculate PLV
+        plv = np.abs(np.mean(phase_diff))
     return plv
 
 # old version - not working when the spike_trains aren't from the same length    
