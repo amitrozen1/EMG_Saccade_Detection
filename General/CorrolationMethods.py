@@ -298,11 +298,14 @@ def get_max_xcorr_1d(mat1, mat2, tMaxMs, downsample_window_ms, s, e, state="list
     return max_corr, max_ind
 
 
-def get_max_pearson_xcorr_2d(mat1, mat2, tMaxMs, downsample_window_ms, s, e, state="listen", shouldReturnXcorrVec=False, max_ver=False):
+def get_max_pearson_xcorr_2d(mat1, mat2, tMaxMs, downsample_window_ms, s, e, direction="bi-direction", shouldReturnXcorrVec=False, max_ver=False):
     tMax = tMaxMs // downsample_window_ms
     s1 = 0
-    if "read" in state.lower():
-        s1 = s
+    if "one" in direction.lower():
+        if ( s1 - (500//downsample_window_ms) > 0 ):
+            s1 = s - (500//downsample_window_ms)
+        else:
+            s1 = s
     elif s - tMax > 0:
         s1 = s - tMax
 
@@ -348,11 +351,60 @@ def get_max_pearson_xcorr_2d(mat1, mat2, tMaxMs, downsample_window_ms, s, e, sta
     return max_corr, max_ind
 
 
-def get_max_xcorr_pearson_1d(mat1, mat2, tMaxMs, downsample_window_ms, s, e, state="listen", shouldReturnXcorrVec=False):
+from scipy.stats import norm
+def norm_pdf_weight(window):
+    return 1/norm.pdf(np.mean(window), loc=np.mean(window), scale=np.std(window))
+
+def exp_weight(window):
+    return np.exp(np.mean(window) + np.std(window))
+
+def simple_weight(window):
+    return np.mean(window) + np.std(window)
+
+def mult_weight(window):
+    return np.mean(window) * np.std(window)
+
+def min_mean_weight(a, b=[0]):
+    return np.min([np.mean(a), np.mean(b)])
+
+#mat 1 is the listener
+#mat 2 is the reader\
+
+def find_true_global_maximum(correlations):
+    n = len(correlations)
+    if n < 3:
+        return None  # Not enough points to have a peak
+    
+    global_max_value = None
+    global_max_index = None
+    
+    # Check each point, except the first and last
+    for i in range(1, n-1):
+        if correlations[i] > correlations[i-1] and correlations[i] > correlations[i+1]:
+            if global_max_value is None or correlations[i] > global_max_value:
+                global_max_value = correlations[i]
+                global_max_index = i
+    
+        
+    # plt.plot(correlations)
+    # plt.title("lowess_xcorr_vec")
+    # if global_max_index is not None:
+    #     plt.plot(global_max_index, correlations[global_max_index], 'ro')
+    # plt.show()
+    # plt.clf()
+
+
+    return global_max_index
+
+
+def get_max_xcorr_pearson_1d(mat1, mat2, tMaxMs, downsample_window_ms, s, e, direction, shouldReturnXcorrVec=False, weighted_corr = False, lowess=False):
     tMax = tMaxMs // downsample_window_ms
     s1 = 0
-    if "read" in state.lower():
-        s1 = s
+    if "one" in direction.lower():
+        if ( s1 - (500//downsample_window_ms) > 0 ):
+            s1 = s - (500//downsample_window_ms)
+        else:
+            s1 = s
     elif s - tMax > 0:
         s1 = s - tMax
 
@@ -374,7 +426,12 @@ def get_max_xcorr_pearson_1d(mat1, mat2, tMaxMs, downsample_window_ms, s, e, sta
     for i in range(len(mat1) - len(mat2) + 1):
         window = mat1[i:i+len(mat2)]
         corr = np.corrcoef(window, mat2)[0, 1]
-        if not np.isnan(corr): 
+        if weighted_corr:
+            # if "read" in state.lower():
+            #     corr = corr * min_mean_weight(window)#np.mean(window) #window is always the listener.
+            # else:
+            corr = corr * np.mean(window) #min_mean_weight(window, mat2)#np.min([np.mean(window), np.mean(mat2)])
+        if not np.isnan(corr):
             correlations.append(corr)
         else:
             correlations.append(0)
@@ -385,6 +442,15 @@ def get_max_xcorr_pearson_1d(mat1, mat2, tMaxMs, downsample_window_ms, s, e, sta
 
     if shouldReturnXcorrVec:
         return correlations
+    
+
+    if (lowess):
+        lowess_xcorr_vec = sm.nonparametric.lowess(correlations, np.arange(len(correlations)), frac=0.25)[:, 1]
+        max_ind = find_true_global_maximum(lowess_xcorr_vec)
+        if max_ind is None:
+            return 0,0
+        max_corr = correlations[max_ind]
+
     
     #old and fault : max_ind = s1 + max_ind * downsample_window_ms
     max_ind = np.abs(s1 - s + max_ind) * downsample_window_ms
@@ -472,6 +538,13 @@ def dtw_ndim_with_dist(from_s, to_s, window):
     dist, paths = warping_paths(from_s, to_s, window=window)
     path = best_path(paths)
     return path, dist
+
+def dtw_pearson_1d(signal1, signal2, max_window):
+    path, dist = dtw_ndim_with_dist(signal1, signal2, max_window)
+    p1 = [p[0] for p in path]
+    p2 = [p[1] for p in path]
+    r, _ = pearsonr(signal1[p1], signal2[p2])
+    return r, dist
 
 
 def dtai_dist_dtw_pearson_over_seconds(mat1, mat2, max_window, is_ndim=True):
@@ -633,7 +706,7 @@ def windowed_lagged_cross_correlation(signal1, signal2, wSize, wInc, tMax, tInc)
     # return np.mean(np.max(result, axis=1))
     return np.nanmean(max_correlations)
 
-def cross_correlation_max_pearson(v1, v2, tMax):
+def cross_correlation_max_pearson(v1, v2, tMax, weighted_corr=False):
     """
     Compute cross-correlation between two vectors, v1 and v2, with a maximum shift of tMax.
     Only the overlapping parts of the vectors are considered (no padding), and the shift
@@ -664,6 +737,10 @@ def cross_correlation_max_pearson(v1, v2, tMax):
         # Calculate Pearson correlation if both arrays are non-empty
         if len(shifted_v1) > 0 and len(shifted_v2) > 0:
             r, _ = pearsonr(shifted_v1, shifted_v2)
+            if ( weighted_corr ):
+                r = r * np.min(shifted_v1)#min_mean_weight(shifted_v1, shifted_v2) #np.mean(shifted_v1) #1 is always the listner.
+                #np.min([np.mean(shifted_v1), np.mean(shifted_v2)])
+
             if r > max_pearson:
                 max_pearson = r
                 best_shift = shift

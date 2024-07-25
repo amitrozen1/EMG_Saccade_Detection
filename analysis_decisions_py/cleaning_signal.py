@@ -29,3 +29,31 @@ def remove_emg_artifacts(emg_signals, std_threshold=2):
         filtered_signals[i, upper_outlayers] = upper_bound
 
     return filtered_signals
+
+
+def uniform_continuity_clean(emg_data, window_size, step_size_ratio=1, std_threshold=2):
+    # Length of the signal
+    nrows = emg_data.shape[0]
+    ncols = emg_data.shape[1]
+    step_size = int(window_size*step_size_ratio)
+    
+    # Sliding window approach
+    for r in range(nrows):
+        signal = emg_data[r]
+        for start in range(0, ncols - window_size + 1, step_size):
+            end = start + window_size
+            window = signal[start:end]
+            mean = np.mean(window)
+            std = np.std(window)
+            lower_bound = mean - std_threshold * std
+            upper_bound = mean + std_threshold * std
+            
+            # Check each value in the window
+            for i in range(start, end):
+                if signal[i] < lower_bound:
+                    signal[i] = lower_bound
+                elif signal[i] > upper_bound:
+                    signal[i] = upper_bound
+        emg_data[r] = signal
+    
+    return emg_data

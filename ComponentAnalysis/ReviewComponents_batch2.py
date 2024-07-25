@@ -22,9 +22,11 @@ def convert_string_to_list_of_ints(s):
 
 
 if current_batch == 1:
-    df = pd.read_excel("C:\\Liron\\DataEmg\\Try\\batch1_review_after_dwt.xlsx")
+    df = pd.read_excel("C:\\Liron\\DataEmg\\Try\\batch1_review_after_db6_dwt.xlsx")
+    #df = pd.read_excel("C:\\Liron\\DataEmg\\Try\\batch1_review_after_dwt.xlsx")
+    #df = pd.read_excel("C:\\Liron\\DataEmg\\Try\\batch1_review_after_dwt - different_corrugator.xlsx")
 else:
-    df = pd.read_excel("C:\\Liron\\DataEmg\\new_batch\\batch1_review_after_db6_dwt.xlsx")
+    df = pd.read_excel("C:\\Liron\\DataEmg\\new_batch\\new_review_after_dwt.xlsx")
 
 sessions = dict()
 

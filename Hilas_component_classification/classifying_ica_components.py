@@ -12,6 +12,41 @@ import pywt
 from scipy.interpolate import griddata
 
 
+def wavelet_denoising_overlap_and_dynamic(emg_data_input, fs, wavelet, window_size=10, level=5):
+    emg_data = emg_data_input.copy()
+    print("=====================")
+    print(f"Denoising signal using {wavelet} Wavelet ...")
+    overlap = window_size * fs // 2  # 50% overlap
+
+    for source in range(len(emg_data)):
+        for i in range(0, len(emg_data[source]) - window_size * fs, overlap):
+            signal = emg_data[source, i:i + window_size * fs]
+            
+            # Compute wavelet coefficients
+            coefficients = pywt.wavedec(signal, wavelet, level)
+            
+            # Apply thresholding to detail coefficients
+            for j in range(1, len(coefficients)):
+                # Adaptive thresholding based on noise estimation
+                sigma = np.median(np.abs(coefficients[j])) / 0.6745
+                threshold = sigma * np.sqrt(2 * np.log(len(coefficients[j])))
+                coefficients[j] = pywt.threshold(coefficients[j], threshold, mode='soft')
+            
+            # Reconstruct the denoised signal
+            denoised_signal = pywt.waverec(coefficients, wavelet, level)
+            
+            # Handle possible mismatch in lengths due to wavelet processing
+            denoised_signal = denoised_signal[:len(signal)]
+            
+            # Overlap-add method
+            if i == 0:
+                emg_data[source, i:i + window_size * fs] = denoised_signal
+            else:
+                emg_data[source, i:i + overlap] += denoised_signal[:overlap]
+                emg_data[source, i + overlap:i + window_size * fs] = denoised_signal[overlap:]
+                
+    return emg_data
+
 def filter_signal(data, fs):
     # apply notch filter to remove 50Hz noise
     b, a = signal.iirnotch(50, 30, fs)
@@ -58,12 +93,16 @@ def covariance(x):
 
 
 def whiten(emg_signal):
+    whiteM = get_whiten_matrix(emg_signal)
+    emg_signal = np.dot(whiteM, emg_signal)
+    return emg_signal
+
+def get_whiten_matrix(emg_signal):
     cov_matrix = covariance(emg_signal)
     U, S, V = np.linalg.svd(cov_matrix)
     d = np.diag(1.0 / np.sqrt(S))
     whiteM = np.dot(U, np.dot(d, U.T))
-    emg_signal = np.dot(whiteM, emg_signal)
-    return emg_signal
+    return whiteM
 
 
 def calc_ica_components(emg_data, wavelet, participant_folder_path, experinment_part_name):

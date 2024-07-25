@@ -1,5 +1,5 @@
 from EDF.EdfAnalyzer import EdfAnalyzer
-from ComponentAnalysis.ComponentExtractor import load_special_components_if_exists, get_special_component_indexes, save_new_w, get_special_component_names
+from ComponentAnalysis.ComponentExtractor import load_special_components_if_exists, get_special_component_indexes, get_special_component_names
 from analysis_decisions_py.cleaning_signal import remove_emg_artifacts
 from scipy.stats import zscore
 from General.HelperFunctions import remove_rows_from_matrix
@@ -9,7 +9,8 @@ from EDF.PlotHeatmap import default_heatmap_with_channels_removal, get_heatmap
 import pyedflib
 from General.PlotFunctions import plotChunkData
 from dataclasses import dataclass
-
+from Hilas_component_classification.classifying_ica_components import wavelet_denoising, whiten, center
+from scipy import signal
 
 edf_path = r"C:\Liron\neuroscience\PHD\First year experiment - EMG\StoriesFromActress\EDF\1_Recording_00_SD.edf"
 image_path = r"C:\Liron\neuroscience\PHD\First year experiment - EMG\StoriesFromActress\img_cropped_mirror.png"
@@ -20,19 +21,31 @@ correct_value = -0.5 # the correct value is just a random RT value as I did not 
 def get_folder_path(p=edf_path):
     return os.path.dirname(p)
 
-def open_w_if_exisis(hard=False):
-    if hard:
+def open_w_if_exisis(hard=False, dwt=False):
+    if dwt:
+        name="w_dwt_db15.npy"
+    elif hard:
         name = "w_hard.npy"
     else:
         name = "w.npy"
     try:
         #get folder path from the edf path:
-        return np.load(os.path.join(get_folder_path(), "w.npy"))
+        return np.load(os.path.join(get_folder_path(), name))
+    except:
+        return None
+
+def open_whiten_if_exisis():
+    try:
+        return np.load(os.path.join(get_folder_path(), "white.npy"))
     except:
         return None
     
-def save_w(w):
-    np.save(os.path.join(get_folder_path(), "w.npy"), w)
+def save_w(w, dwt=False):
+    if dwt:
+        name="w_dwt_db15.npy"
+    else:
+        name = "w.npy"
+    np.save(os.path.join(get_folder_path(), name), w)
 
 def is_my_annotation(annotation):
     s = str(annotation).lower()
@@ -85,12 +98,7 @@ def get_listening_stories():
 # 1. check for better filtering for the data.
 # 2. choose best components in that case.
 
-def export_actress_chunked_data(downsampleWindowInMs=20, rms_size_ms=100, hard_noise_removal = False):
-    f = pyedflib.EdfReader(edf_path)
-    Y, freq = EdfAnalyzer.readEdf(f, True, False, hard_noise_removal=hard_noise_removal)
-
-    chunks = read_annotations(f, freq, downsampleWindowInMs, correct_value)
-
+def build_actress_chunks(chunks, downsampleWindowInMs):
     chosen_chunk_numbers = get_listening_stories()
     chunks = [chunk for chunk in chunks if int(chunk.story_number) in chosen_chunk_numbers]
 
@@ -101,6 +109,68 @@ def export_actress_chunked_data(downsampleWindowInMs=20, rms_size_ms=100, hard_n
 
     for key in chunks_as_dict:
         print(f"{key}: len: {(chunks_as_dict[key].end - chunks_as_dict[key].start)*downsampleWindowInMs/1000}")
+
+    return chunks_as_dict
+
+def export_actress_chunked_data_with_dwt(downsampleWindowInMs=20, rms_size_ms=100, hard_noise_removal = False):
+    f = pyedflib.EdfReader(edf_path)
+    Y, freq = EdfAnalyzer.readEdf(f)
+    chunks = read_annotations(f, freq, downsampleWindowInMs, correct_value)
+    elecs_to_remove = [0]
+    #Y, chunks, freq = EdfAnalyzer.Read(edf_path, correct_value, downsample_window_in_ms=downsampleWindowInMs)
+    chunks_as_dict = build_actress_chunks(chunks, downsampleWindowInMs)
+    Y = remove_rows_from_matrix(Y, elecs_to_remove)
+    Y = wavelet_denoising(Y, freq, 'db15')
+    Y, _ = center(Y)
+
+    Y = whiten(Y)
+
+    w = open_w_if_exisis(dwt=True)
+    
+    if ( w is None):
+        w, independentComponents = EdfAnalyzer.ICA(Y, 16 - len(elecs_to_remove), whiten=False)
+        save_w(w, dwt=True)
+    else:
+        independentComponents = np.matmul(w,Y)
+
+    #change according to heatmap.
+    special_comps_index = [8,14,0,9]
+    #get_special_component_indexes(w, elecs_to_remove)
+    #get_heatmap(image_path, 16, w, electrodes_to_remove=elecs_to_remove)
+
+    independentComponents = independentComponents[special_comps_index, :]
+    independentComponents = EdfAnalyzer.window_rms(independentComponents, rms_size_ms, freq)
+    hz = int(1000/downsampleWindowInMs)
+    independentComponents = signal.resample(independentComponents, int(independentComponents.shape[1] / freq * hz), axis=1)
+    
+    special_max = np.max(independentComponents, axis=0)
+    independentComponents = np.vstack((independentComponents, special_max))
+
+    for key in chunks_as_dict:
+        chunk = chunks_as_dict[key]
+        chunks_as_dict[key].data = independentComponents[:, chunk.start:chunk.end]
+    
+    #     #plot the special components:
+    # titles = get_special_component_names() + ["max"]
+    # #toPlot = independentComponents[ : , chunks[0].start:chunks[0].end]
+    # toPlot = independentComponents
+    # ticks = []
+    # for chunk in chunks:
+    #     ticks.append(chunk.start)
+    #     ticks.append(chunk.end)
+    
+    # plotChunkData(toPlot, "actrss", ticks, titles, num_components=5, show=True)
+    
+    
+    return chunks_as_dict
+
+
+def export_actress_chunked_data(downsampleWindowInMs=20, rms_size_ms=100, hard_noise_removal = False):
+    f = pyedflib.EdfReader(edf_path)
+    Y, freq = EdfAnalyzer.readEdf(f, True, False, hard_noise_removal=hard_noise_removal)
+
+    chunks = read_annotations(f, freq, downsampleWindowInMs, correct_value)
+    chunks_as_dict = build_actress_chunks(chunks, downsampleWindowInMs)
 
     Y = zscore(Y, axis=1)
 
@@ -113,7 +183,7 @@ def export_actress_chunked_data(downsampleWindowInMs=20, rms_size_ms=100, hard_n
 
     #plot the heatmap
     #default_heatmap_with_channels_removal(w, elecs_to_remove)
-    #get_heatmap(image_path, 16, w)
+    get_heatmap(image_path, 16, w)
 
     #please insrt the special components indexes here:
     #str_input = input("Please insert the special components indexes here and press enter")

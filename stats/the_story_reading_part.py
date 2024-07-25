@@ -22,18 +22,20 @@ def add_before_extention(path, add):
 arctan = False # True if we want to use arctan on the values before the wilcoxon test
 batch2 = False
 
-muscles = ["Nose", "Eye", "Zygomaticus", "Corrugator"]
+muscles = ["Nose", "Eye", "Zygomaticus", "Corrugator", "NegComp", "PosComp"]
 muscle_colls = [f"mean_{muscle}_{p}" for muscle in muscles for p in ["A", "B"]]
-sync_base = ["chosen_max_comp", "all_comps"] #["chosen_comps", "all_max_comp", "chosen_max_comp"]
+sync_base = muscles #["chosen_max_comp", "all_comps"] #["chosen_comps", "all_max_comp", "chosen_max_comp"]
 sync_colls = [f"{prefix}{ending}" for prefix in sync_base for ending in ['_mean_corr', '_mean_lag', '_max_corr']]
 colls =  muscle_colls #sync_colls + muscle_colls
 
+
+results_base = "RMS_50_downsample_5_window_3_maxlag_3_after_pre_reg_dwt_db15_corrEachComp_scipy_resample_noWeightedCorr_2direct_allow_0.5_delay_noz_noartrem_with_var_withValenceComps"
 
 # Load the data from the uploaded Excel file
 #file_path = r"C:\Liron\DataEmg\Try\results_2024\RMS_100_downsample_50_window_3_maxlag_3_after_decision_and_remove_artifacts_with_callibration_remove_zyg_for_read_no_arctan.csv"
 #first batch new:
 #file_path = r"C:\Liron\DataEmg\Try\results_2024\RMS_100_downsample_50_window_3_maxlag_3_after_pre_reg_allcomps_2dmaxver.csv"
-file_path = r"C:\Liron\DataEmg\Try\results_2024\RMS_100_downsample_50_window_3_maxlag_3_after_pre_reg_dwt_db6_2dmaxver.csv"
+file_path = r"C:\Liron\DataEmg\Try\results_2024\RMS_50_downsample_5_window_3_maxlag_3_after_pre_reg_dwt_db15_corrEachComp_scipy_resample_noWeightedCorr_2direct_allow_0.5_delay_noz_noartrem_with_var_withValenceComps.csv"
 #second batch new:
 if ( batch2 ):
     file_path = r"C:\Liron\DataEmg\new_batch\results_2024\RMS_100_downsample_50_window_3_maxlag_3_after_prereg_au6_allcomps_2dmaxver.csv"
@@ -182,7 +184,7 @@ if True:
 
     #     print(wilcoxon(a, b, alternative='greater'))
 
-    alternative = 'greater' #'two-sided'
+    alternative = 'greater'
 
 
     if (True): #muscles:
@@ -241,7 +243,7 @@ if True:
 
         #save df and color in yellow significant p-value:
         df = df.style.applymap(lambda x: 'background-color : yellow' if type(x)!= str and x < 0.05 else '')
-        df.to_excel("batch1_dwt_db6_muscles.xlsx", engine='openpyxl', index=False)
+        df.to_excel(fr".\reading_sync_tries\muscles_{alternative}_{results_base}.xlsx", engine='openpyxl', index=False)
 
     if (True): #sync
         dict = {}
@@ -280,4 +282,4 @@ if True:
         #convert dict to dataframe
         df = pd.DataFrame.from_dict(dict)
         df = df.style.applymap(lambda x: 'background-color : yellow' if type(x)!= str and x < 0.05 else '')
-        df.to_excel("batch1_dwt_db6_sync.xlsx", engine='openpyxl', index=False)
+        df.to_excel(fr".\reading_sync_tries\sync_{alternative}_{results_base}.xlsx", engine='openpyxl', index=False)

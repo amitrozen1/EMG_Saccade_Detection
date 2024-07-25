@@ -12,7 +12,7 @@ from EDF.PlotHeatmap import default_heatmap_with_channels_removal
 from General.PlotFunctions import clearPlot, plotChunkData
 from General.HtmlTablePlot import initHtmlDictionary, SaveHtmlFile, addRow, toImageHtmlColFromPath, ColType, toTextHtmlCol, toLinkPhotoHtmlColFromPath, toImageHtmlColFromPathWithSrc
 from ComponentAnalysis.ReviewComponents_batch2 import GetSessionsBatch2, get_w_path, get_bad_electrode, get_chosen_comps, is_no_review_folder
-from Hilas_component_classification.classifying_ica_components import wavelet_denoising, center, whiten
+from Hilas_component_classification.classifying_ica_components import wavelet_denoising, center, whiten, wavelet_denoising_overlap_and_dynamic, get_whiten_matrix
 
 
 def get_special_component_indexes(w, list_of_faulty_channels):
@@ -25,13 +25,18 @@ def get_special_component_names():
 
 def get_component_analysis_folder(data_path, session, p, no_review = False):
     if ( no_review ):
-        return os.path.join(data_path, session, "DWT_all_comps_db6", particiapnt_to_char(p))
+        return os.path.join(data_path, session, "DWT_hila_db15", particiapnt_to_char(p))
     return os.path.join(data_path, session, "IC_w_and_photos", particiapnt_to_char(p))
 
 def save_new_w(session, p, w, data_path = data_path, no_review = False):
     folder = get_component_analysis_folder(data_path, session, p, no_review)
     os.makedirs(folder, exist_ok=True)
     np.save(os.path.join(folder, "w.npy"), w)
+
+def save_new_white(session, p, whiteM, data_path = data_path, no_review = False):
+    folder = get_component_analysis_folder(data_path, session, p, no_review)
+    os.makedirs(folder, exist_ok=True)
+    np.save(os.path.join(folder, "white.npy"), whiteM)
 
 def open_w_if_exisis(session, p, no_review = False):
     try:
@@ -60,7 +65,6 @@ def save_new_w_batch2(session, p, w):
     np.save(w_path, w)
 
 
-
 def save_special_components(data_path, chosen_comps, session, p, no_review = False):
     file_path = os.path.join(get_component_analysis_folder(data_path, session, p, no_review), "components_chosen.txt")
     with open(file_path, "w") as file:
@@ -75,8 +79,49 @@ def load_special_components_if_exists(data_path, session, p, no_review = False):
             return list(map(int, file.read().split("\n")))
     return None
 
+
+def do_single_session_batch1_old_version_with_clean(session, data_path = data_path):
+    #elecs_to_remove, is_dark = get_review_data(session, data_path)
+    elecs_to_remove = [[],[]]
+    path_and_corrections = getPathsFromSessionFolder(os.path.join(data_path, session))
+    for p in [A,B]:
+        print(elecs_to_remove[p])
+
+        #w = open_w_if_exisis(session, p)
+        w=None
+        
+        if ( w is None):
+            Y, chunks, freq = EdfAnalyzer.Read(path_and_corrections[p][0], path_and_corrections[p][1])
+            Y = remove_rows_from_matrix(Y, elecs_to_remove[p])
+            Y = wavelet_denoising(Y, freq, 'db6')
+            #Y = zscore(Y, axis=1)
+            Y, _ = center(Y)
+            Y = whiten(Y)
+            w, independentComponents = EdfAnalyzer.ICA(Y, 16-len(elecs_to_remove[p]), whiten=False)
+            save_new_w(session, p, w, data_path, no_review = True)
+        # else:
+        #     independentComponents = np.dot(w, Y)
+        chosen_components_index = load_special_components_if_exists(data_path, session, p, no_review=True)
+        if (chosen_components_index is None):
+            chosen_components_index = get_special_component_indexes(w, elecs_to_remove[p])
+            save_special_components(data_path, chosen_components_index, session, p, no_review = True)
+            
+        
+        print(chosen_components_index)
+        default_heatmap_with_channels_removal(w, elecs_to_remove[p], selected=chosen_components_index, 
+                                            save_at=get_component_analysis_folder(data_path, session, p, no_review=True), 
+                                            save_different_figures=True,
+                                            extra_headers=get_special_component_names())
+        
+        #save whole heatmap
+        default_heatmap_with_channels_removal(w, elecs_to_remove[p],
+                                    save_at=get_component_analysis_folder(data_path, session, p, no_review=True), 
+                                    save_different_figures=False,
+                                    save_whole_heatmap=True)
+        print("end")
+
 def do_single_session(session, data_path = data_path):
-    elecs_to_remove, is_dark = get_review_data(session, data_path)
+    #elecs_to_remove, is_dark = get_review_data(session, data_path)
     elecs_to_remove = [[],[]]
     path_and_corrections = getPathsFromSessionFolder(os.path.join(data_path, session))
     for p in [A,B]:
@@ -123,16 +168,16 @@ def do_single_session_no_review(session, data_path = data_path):
         w=None
         if ( w is None):
             Y, chunks, freq = EdfAnalyzer.Read(path_and_corrections[p][0], path_and_corrections[p][1])
-            #to remove:
             Y = wavelet_denoising(Y, freq, 'db15')
-            #Y, _ = center(Y)
+            Y, _ = center(Y)
             #Y = whiten(Y)
-            #end remove. uncomment next line.
-            Y = zscore(Y, axis=1)
-            w, independentComponents = EdfAnalyzer.ICA(Y, 16)
+            whiteM = get_whiten_matrix(Y)
+            save_new_white(session, p, whiteM, data_path, no_review = True)
+            Y = np.dot(whiteM, Y)
+            w, independentComponents = EdfAnalyzer.ICA(Y, 16, whiten=False)
             save_new_w(session, p, w, data_path, no_review =True)
-        # else:
-        #     independentComponents = np.dot(w, Y)
+        else:
+            independentComponents = np.dot(w, Y)
         chosen_components_index = load_special_components_if_exists(data_path, session, p, no_review =True)
         if (chosen_components_index is None):
             chosen_components_index = get_special_component_indexes(w, [])
@@ -209,13 +254,13 @@ def go_manually_and_edit_chosen_components(data_path = data_path):
             save_special_components(data_path, chosen_comps, session, p)
 
 def main(data_path = data_path):
-    sessions_list = GetSessions(data_path) #GetSessionsBatch2()
+    sessions_list = GetSessions(data_path)[23:] #GetSessionsBatch2()
     for session in tqdm(sessions_list):
         print("\n")
         print(session)
         print("\n")
-        #do_single_session_no_review(session, data_path)
-        do_single_session(session, data_path)
+        do_single_session_no_review(session, data_path)
+        #do_single_session(session, data_path)
         #do_single_session_batch2(session, data_path)
     
     #create_html_batch2(data_path)
@@ -293,7 +338,7 @@ def create_html_after_dwt(data_path = data_path):
             addRow(html_dict, [toTextHtmlCol(session), toTextHtmlCol(particiapnt_to_char(p))] +
                     image_cols)
     
-    SaveHtmlFile(html_dict, os.path.join(data_path, "after_dwt_and_whiten_db6_batch1.html"))
+    SaveHtmlFile(html_dict, os.path.join(data_path, "after_db15_hila_batch2.html"))
 
 
 def plot_selected_components():

@@ -9,10 +9,10 @@ from tqdm import tqdm
 from General.HelperFunctions import getPathsFromSessionFolder, remove_rows_from_matrix
 from EDF.EdfAnalyzer import EdfAnalyzer
 from General.HelperFunctions import get_review_data
-from ComponentAnalysis.ComponentExtractor import open_w_if_exisis, load_special_components_if_exists, get_special_component_indexes
+from ComponentAnalysis.ComponentExtractor import open_w_if_exisis, open_whiten_if_exisis, load_special_components_if_exists, get_special_component_indexes, GetLipCornerDownPuller, GetComponentByElecrodesNumber
 from analysis_decisions_py.cleaning_signal import remove_emg_artifacts
-from analysis_decisions_py.original_actress_readings import export_actress_chunked_data
-
+from analysis_decisions_py.original_actress_readings import export_actress_chunked_data, export_actress_chunked_data_with_dwt
+from scipy import signal
 from ComponentAnalysis.ReviewComponents_batch2 import GetSessionsBatch2, open_w_if_exists_batch2, get_bad_electrode, get_chosen_comps, is_no_review_folder
 from PsychData.Experiment_CSV import read_experiment_csv_batch2
 from Hilas_component_classification.classifying_ica_components import wavelet_denoising, whiten, center
@@ -90,12 +90,55 @@ def run_emg_analysis_batch2(main_corrolation_func, rms_size_ms, downsampleWindow
         df.columns = headers + ["confidence_A", "confidence_B"]
         df.to_csv(csv_out_path)
 
+
+def get_neg_pos_comps(independentComponents, chunks, n=3):
+    smile_s = int(chunks["smile__0"].Start.Time)
+    smile_e = int(chunks["smile__2"].End.Time)
+    angry_s = int(chunks["angry__0"].Start.Time)
+    angry_e = int(chunks["angry__2"].End.Time)
+
+    smile_data = independentComponents[:, smile_s:smile_e]
+    angry_data = independentComponents[:, angry_s:angry_e]
+
+    neg_indexes = np.argsort(np.mean(angry_data, axis=1) - np.mean(smile_data, axis=1))[-n:]
+    pos_indexes = np.argsort(np.mean(smile_data, axis=1) - np.mean(angry_data, axis=1))[-n:]
+
+    neg_comp = np.mean(independentComponents[neg_indexes, :], axis=0)
+    pos_comp = np.mean(independentComponents[pos_indexes, :], axis=0)
+
+    return [neg_comp, pos_comp]
+    
+def get_neg_pos_indexes(independentComponents, chunks):
+    key = "smile__2"
+    smile_s = int(chunks[key].Start.Time)
+    smile_e = int(chunks[key].End.Time)
+    key = "angry__2"
+    angry_s = int(chunks[key].Start.Time)
+    angry_e = int(chunks[key].End.Time)
+    
+    smile_data = independentComponents[:, smile_s:smile_e]
+    angry_data = independentComponents[:, angry_s:angry_e]
+
+    neg_comp = np.argmax(np.mean(angry_data, axis=1) - np.mean(smile_data, axis=1))
+    pos_comp = np.argmax(np.mean(smile_data, axis=1) - np.mean(angry_data, axis=1))
+
+    return [neg_comp, pos_comp]
+
+def get_sessions():
+    if current_batch == 1:
+        sessions =  GetSessions(data_path)
+        sessions.remove("20122022_1415")
+    else:
+        sessions = GetSessionsBatch2()
+    return sessions
+
 def run_emg_analysis(main_corrolation_func, rms_size_ms, downsampleWindowInMs, windowForCorrInMs, numOfPixelsForXCorrStep, headers, csv_out_path, with_actress=False, hard_noise_remove_for_actress = False):
-    sessions_list = GetSessions(data_path)
+    sessions_list = get_sessions()
+
     all_correlations = []
 
     if (with_actress):
-        actress_chunks = export_actress_chunked_data(downsampleWindowInMs, rms_size_ms, hard_noise_remove_for_actress)
+        actress_chunks = export_actress_chunked_data_with_dwt(downsampleWindowInMs, rms_size_ms)
     
     for session in tqdm(sessions_list):
         breaked = False
@@ -110,11 +153,16 @@ def run_emg_analysis(main_corrolation_func, rms_size_ms, downsampleWindowInMs, w
         for p in [A,B]:
             Y, chunks, freq = EdfAnalyzer.Read(path_and_corrections[p][0], path_and_corrections[p][1], downsampleWindowInMs)
 
-            Y = remove_rows_from_matrix(Y, elecs_to_remove[p])
+            #Y = remove_rows_from_matrix(Y, elecs_to_remove[p])
             Y = wavelet_denoising(Y, freq, 'db15')
             Y, _ = center(Y)
-            # Y = zscore(Y, axis=1)
-            Y = whiten(Y) # no whiten again.
+            #Y = zscore(Y, axis=1)
+            
+            whiten_mat = open_whiten_if_exisis(session, p, dwt=True)
+            if (whiten_mat is None):
+                Y = whiten(Y)
+            else:
+                Y = np.dot(whiten_mat, Y)
 
             w = open_w_if_exisis(session, p, dwt=True)
             
@@ -122,33 +170,33 @@ def run_emg_analysis(main_corrolation_func, rms_size_ms, downsampleWindowInMs, w
                 w, independentComponents = EdfAnalyzer.ICA(Y, 16-len(elecs_to_remove[p]), whiten=False)
                 #save_new_w(session, p, w)
             else:
-                independentComponents = np.dot(w, Y)
+                independentComponents = np.matmul(w,Y)
 
-            independentComponents = remove_emg_artifacts(independentComponents)
+
+            # special_comps_index = get_chosen_comps(session, p)
+            # independentComponents = independentComponents[special_comps_index, :]
+        
+
+            #independentComponents = remove_emg_artifacts(independentComponents)
             independentComponents = EdfAnalyzer.window_rms(independentComponents, rms_size_ms, freq)
-            independentComponents = EdfAnalyzer.resample_by_averaging_every_n(independentComponents, downsampleWindowInMs, freq)
+            #independentComponents = EdfAnalyzer.resample_by_averaging_every_n(independentComponents, downsampleWindowInMs, freq)
+            hz = int(1000/downsampleWindowInMs)
+            independentComponents = signal.resample(independentComponents, int(independentComponents.shape[1] / freq * hz), axis=1)
 
-            #create a new components:
-            # special_comps_index = load_special_components_if_exists(data_path, session, p)
-            # if (special_comps_index is None):
-            #     special_comps_index = get_special_component_indexes(w, elecs_to_remove[p])
+            #select components:
+            special_comps_index = load_special_components_if_exists(data_path, session, p, dwt=True)
+            if (special_comps_index is None):
+                special_comps_index = get_special_component_indexes(w, elecs_to_remove[p])
             
-            special_comps_index = get_chosen_comps(session, p)
-
-            if (-1 in special_comps_index):
-                print("Error in session " + session + " participant " + str(p))
-                breaked = True
-                continue
-            
-            # total_max = np.max(independentComponents, axis=0)
+            #special_comps_index += get_neg_pos_indexes(independentComponents, chunks)
+            special_comps_index += [GetComponentByElecrodesNumber(w, elecs_to_remove[p], [2])]
+            special_comps_index += [GetComponentByElecrodesNumber(w, elecs_to_remove[p], [5])]
+            special_comps_index +=  [GetLipCornerDownPuller(w, elecs_to_remove[p])]
             independentComponents = independentComponents[special_comps_index, :]
-            # special_max = np.max(independentComponents, axis=0)
-            #for temporal analysis:
-            # independentComponents = np.vstack((independentComponents, total_max))
-            # independentComponents = np.vstack((independentComponents, special_max))
 
-            both_componenets[p] = independentComponents
             both_chunks[p] = EdfAnalyzer.combine_callibration_ticks(chunks)
+            both_componenets[p] = independentComponents
+            
 
         if (breaked):
             continue
@@ -158,25 +206,44 @@ def run_emg_analysis(main_corrolation_func, rms_size_ms, downsampleWindowInMs, w
         else:
             corr_results = main_corrolation_func(session, both_componenets, both_chunks)
 
-        choices = loadChoiceFromSession(data_path, session)
-        for i in range(len(corr_results)):
-            result = corr_results[i]
-            key = result[1]
-            key_splits = key.split("_")
-            if ( len(key_splits) > 1):
-                story_number = key_splits[1]
-                if ( story_number != ''):
-                    story_number = story_number.split('.')[0]
-                    for choice in choices:
-                        if ( story_number == choice[0] ):
-                            corr_results[i] = result + choice[1:]
-                            break
+        if (current_batch == 1):
+            choices = read_experiment_csv_batch2(data_path, session) #loadChoiceFromSession(data_path, session)
+            for i in range(len(corr_results)):
+                result = corr_results[i]
+                key = result[1]
+                key_splits = key.split("_")
+                if ( len(key_splits) > 1):
+                    story_number = key_splits[1]
+                    if ( story_number != ''):
+                        story_number = story_number.split('.')[0]
+                        for choice in choices:
+                            if ( story_number == choice[0] ):
+                                corr_results[i] = result + choice[1:]
+                                break
+        else:
+            choices = read_experiment_csv_batch2(data_path, session)
+            for i in range(len(corr_results)):
+                result = corr_results[i]
+                key = result[1]
+                key_splits = key.split("_")
+                if ( len(key_splits) > 1):
+                    story_number = key_splits[1]
+                    if ( story_number != ''):
+                        story_number = story_number.split('.')[0]
+                        for choice in choices:
+                            uc_story_number = choice[0].split('.')[0]
+                            if ( story_number == uc_story_number ):
+                                corr_results[i] = result + choice[1:]
+                                break
         
         all_correlations += corr_results
         del independentComponents
         cleanSpace()
         print("finished session " + session)
     
+    if current_batch == 2:
+        headers += ["confidence_A", "confidence_B"]
+
     if (csv_out_path!= None):
         df = pd.DataFrame(all_correlations)
         df.columns = headers

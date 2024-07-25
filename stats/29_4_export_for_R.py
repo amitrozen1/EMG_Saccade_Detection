@@ -1,8 +1,11 @@
 import pandas as pd
 
 def add_before_extention(path, add):
-    path = path.split('.')
-    return path[0] + add + '.' + path[1]
+    #split to the last instance of "."
+    parts = path.split('.')
+    ext = parts[-1]
+    before_ext = ''.join(parts[:-1])
+    return before_ext + add + '.' + ext
 
 def get_first_ordered_stories():
     pairs = [[1,14], [9,13], [7,15], [2,4]]
@@ -13,10 +16,11 @@ def get_first_ordered_stories():
 def is_original_ordered(first_story):
     return first_story in get_first_ordered_stories()
 
+
 # Load the data from the uploaded Excel file
 #file_path = r"C:\Liron\DataEmg\Try\results_2024\ForPreReg\RMS_100_downsample_50_window_3_maxlag_3_after_decision_and_remove_artifacts_with_callibration_remove_zyg_for_read_no_arctan_nooverlap_correctlag.csv"
 #file_path = r"C:\Liron\DataEmg\Try\results_2024\ForPreReg\new\RMS_100_downsample_50_window_3_maxlag_3_after_decision_and_remove_artifacts_with_callibration_remove_zyg_for_read_no_arctan_nooverlap_correctlag2.csv"
-file_path = r"C:\Liron\DataEmg\Try\results_2024\RMS_100_downsample_50_window_3_maxlag_3_after_pre_reg_dwt_db6_2dmaxver.csv"
+file_path = r"C:\Liron\DataEmg\Try\results_2024\RMS_100_downsample_50_window_3_maxlag_3_after_pre_reg_dwt_db15_maxcomp_withVar_artrem.csv"
 #file_path = r"C:\Liron\DataEmg\Try\results_2024\ForPreReg\RMS_100_downsample_50_window_3_maxlag_3_after_decision_and_remove_artifacts_with_callibration_remove_zyg_for_read_no_arctan_nooverlap_correctlag3_lagCount.csv"
 #file_path = r"C:\Liron\DataEmg\new_batch\results_2024\RMS_100_downsample_50_window_3_maxlag_3_after_prereg_dwt_2dmaxver.csv"
 #file_path = r"C:\Liron\DataEmg\Try\results_2024\RMS_100_downsample_50_window_3_maxlag_3_after_pre_reg_allcomps_2dmaxver.csv"
@@ -47,9 +51,10 @@ data['order'] = ['a' if i % 2 == 0 else 'b' for i in range(len(data))]
 
 
 muscle_colls = [f"mean_{muscle}_{p}" for muscle in muscles for p in ["A", "B"]]
-sync_colls = [f"{prefix}{ending}" for prefix in ["chosen_max_comp", "all_comps"] for ending in ['_mean_corr', '_mean_lag', '_max_corr']]
+#sync_colls = [f"{prefix}{ending}" for prefix in muscles for ending in ['_mean_corr', '_mean_lag', '_max_corr']]
+sync_colls = [f"{prefix}{ending}" for prefix in ["chosen_max_comp"] for ending in ['_mean_corr', '_mean_lag', '_max_corr', "_var_corr", "_var_lag", "_lags_under_1000"]]
 #[f"{prefix}{ending}" for prefix in ['chosen_max_comps', 'chosen_sum_comps'] for ending in ['_mean_corr', '_mean_lag', '_max_corr']]
-colls =  sync_colls + muscle_colls + ["lags_under_500", "lags_under_1000", "lags_under_500_all_comps"]
+colls =  sync_colls + muscle_colls #+ ["lags_under_500", "lags_under_1000", "lags_under_500_all_comps"]
 
 data_odd = data.iloc[::2, :].reset_index(drop=True)
 data_even = data.iloc[1::2, :].reset_index(drop=True)
