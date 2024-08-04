@@ -77,40 +77,60 @@ def GetNoseComponent(w, removed_electrodes_zero_based):
     return GetComponentByElecrodesNumber(w, removed_electrodes_zero_based, [9, 8]) #only 9
 
 def GetSideEyeComponent(w, removed_electrodes_zero_based):
-    return GetComponentByElecrodesNumber(w, removed_electrodes_zero_based, [10, 11, 12]) # 10 is better noisewise. flip the array.
+    return GetComponentByElecrodesNumber(w, removed_electrodes_zero_based, [10,11,12]) # [10, 11, 12]
 
 def GetZygomaticusComponent(w, removed_electrodes_zero_based):
-    return GetComponentByElecrodesNumber(w, removed_electrodes_zero_based, [6, 5, 3, 4]) # maybe 3 is different. 3 and 6 sometime together.
+    return GetComponentByElecrodesNumber(w, removed_electrodes_zero_based, [6, 5, 7, 3, 4]) #  [5, 6, 3, 4]
 
 def GetCorrugatorComponent(w, removed_electrodes_zero_based):
-    return GetComponentByElecrodesNumber(w, removed_electrodes_zero_based, [14, 13, 15, 16]) 
+    return GetComponentByElecrodesNumber(w, removed_electrodes_zero_based, [14, 13, 15, 16]) # [14, 13, 15, 16]
 
 def GetOrbicularisOrisComponent(w, removed_electrodes_zero_based):
     return GetComponentByElecrodesNumber(w, removed_electrodes_zero_based, [1])
+
+def GetLipCornerDownPuller(w, removed_electrodes_zero_based):
+    a = GetComponentByElecrodesNumber(w, removed_electrodes_zero_based, [4])
+    if ( a == -1):
+        return 0
+    return a
+
 
 def get_special_component_indexes(w, list_of_faulty_channels):
     #should replace with HILA's code.
     special_comps_getters = [GetNoseComponent, GetSideEyeComponent, GetZygomaticusComponent, GetCorrugatorComponent]
     return [getter(w, list_of_faulty_channels) for getter in special_comps_getters]
 
-def get_special_component_names():
-    return ["Nose", "Eye", "Zygomaticus", "Corrugator"]
+def get_special_component_names(withValenceComps = False):
+    base = ["Nose", "Eye", "Zygomaticus", "Corrugator"]
+    if (withValenceComps):
+        base += ["NegComp", "PosComp"]
+    base += ["LipCornerDownPuller"]
+    return base
 
-def get_component_analysis_folder(data_path, session, p ):
+def get_component_analysis_folder(data_path, session, p, dwt=False):
+    if (dwt):
+        return os.path.join(data_path, session, "DWT_hila_db15", particiapnt_to_char(p))
     return os.path.join(data_path, session, "IC_w_and_photos", particiapnt_to_char(p))
 
-def open_w_if_exisis(session, p):
+def open_w_if_exisis(session, p, dwt=False):
     try:
-        return np.load(os.path.join(get_component_analysis_folder(data_path, session, p), "w.npy"))
+        return np.load(os.path.join(get_component_analysis_folder(data_path, session, p, dwt), "w.npy"))
     except:
         return None
+
+def open_whiten_if_exisis(session, p, dwt=False):
+    try:
+        return np.load(os.path.join(get_component_analysis_folder(data_path, session, p, dwt), "white.npy"))
+    except:
+        return None
+
 def save_new_w(session, p, w):
     folder = get_component_analysis_folder(data_path, session, p)
     os.makedirs(folder, exist_ok=True)
     np.save(os.path.join(folder, "w.npy"), w)
 
-def load_special_components_if_exists(data_path, session, p):
-    folder = get_component_analysis_folder(data_path, session, p)
+def load_special_components_if_exists(data_path, session, p, dwt=False):
+    folder = get_component_analysis_folder(data_path, session, p, dwt)
     file_path = os.path.join(folder, "components_chosen.txt")
     #if file exists:
     if os.path.exists(file_path):

@@ -38,7 +38,7 @@ def change_to_paired_ordered_choice(listener_choice, story):
             return 'a'
 
 # Load the data from the uploaded Excel file
-file_path = r"C:\Liron\DataEmg\Try\results_2024\RMS_100_downsample_50_window_3_maxlag_3_after_decision_and_remove_artifacts_with_callibration_remove_zyg_for_read_no_arctan_nooverlap_with_RMS_of_corr_comp_VAR.csv"
+file_path = r"C:\Liron\DataEmg\Try\results_2024\ForPreReg\data_files\RMS_100_downsample_50_window_3_maxlag_3_remove-artifacts_nooverlap_actress-compare_no-zyg-for-sync_hardremove_correctlag3_lagCount.csv"
 data = pd.read_csv(file_path)
 
 data = data[data['action'] == 'Listening']
@@ -46,7 +46,7 @@ data = data[data['action'] == 'Listening']
 data['story'] = data['key'].str.extract('Listening_(\d+).ogg')[0].astype(int)
 data['pair_id'] = data['key'].str.extract('Listening_(\d+).ogg_(\d+)')[1].astype(int)
 
-muscles = ["Nose", "Eye", "Zygomaticus", "Corrugator", "chosen_max", "chosen_rms"]
+muscles = ["Nose", "Eye", "Zygomaticus", "Corrugator", "chosen_max"]
 
 data['story_prob'] = (data.groupby('story')['isChoiceA'].transform('mean') + data.groupby('story')['isChoiceB'].transform('mean'))/2
 data['sum_choice'] = data.apply(lambda row: row['isChoiceA'] + row['isChoiceB'], axis=1)
@@ -55,8 +55,8 @@ data['sum_choice'] = data.apply(lambda row: row['isChoiceA'] + row['isChoiceB'],
 data['order'] = ['a' if i % 2 == 0 else 'b' for i in range(len(data))]
 
 muscle_colls = [f"mean_{muscle}_{p}" for muscle in muscles for p in ["A", "B"]]
-sync_colls = [f"{prefix}{ending}" for prefix in ["chosen_max_comps","chosen_rms_comps"] for ending in ['_mean_corr', '_mean_lag', '_max_corr', '_var_corr', '_var_lag']]
-colls =  sync_colls + muscle_colls
+sync_colls = [f"{prefix}{ending}" for prefix in ["chosen_comps","chosen_no_zyg_comps"] for ending in ['_mean_corr', '_mean_lag', '_max_corr']]
+colls =  sync_colls + muscle_colls + ["lags_under_500"]
 
 data_odd = data.iloc[::2, :].reset_index(drop=True)
 data_even = data.iloc[1::2, :].reset_index(drop=True)
@@ -90,4 +90,4 @@ for index, (odd_row, even_row) in enumerate(zip(data_odd.itertuples(), data_even
     # Append the new row dictionary as a DataFrame row to new_df
     new_df = new_df.append(new_row, ignore_index=True)
 
-new_df.to_csv(add_before_extention(file_path, "_listening_for_R_paired_ordered"), index = False)
+new_df.to_csv(add_before_extention(file_path, "_listening_for_R_oneRow"), index = False)

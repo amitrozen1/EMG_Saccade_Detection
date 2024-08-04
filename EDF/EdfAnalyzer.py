@@ -31,6 +31,21 @@ def window_rms_single(a, window_size=800):
     # Calculate the square root of the averaged squared values
     return np.sqrt(a_squared_convolved)
 
+def filter_signal(data, fs):
+    # apply notch filter to remove 50Hz noise
+    b, a = signal.iirnotch(50, 30, fs)
+    data = signal.filtfilt(b, a, data, axis=1)
+    # apply bandpass filter to remove high frequency noise
+    b, a = signal.butter(4, [35, 350], fs=fs, btype='band')
+    filtered_signal = signal.filtfilt(b, a, data, axis=1)
+    # add notch filter of 200 hz
+    b, a = signal.iirnotch(200, 30, fs)
+    filtered_signal = signal.filtfilt(b, a, filtered_signal)
+    # add notch filter of 100 hz
+    b, a = signal.iirnotch(100, 30, fs)
+    filtered_signal = signal.filtfilt(b, a, filtered_signal)
+    return filtered_signal
+
 
 # def window_rms_single(a, window_size=800):
 #     return np.sqrt(np.convolve(a**2, (np.ones(window_size)/float(window_size))))
@@ -126,7 +141,7 @@ class EdfAnalyzer:
                 lower_bound = 20.0
                 if ( hard_noise_removal ):
                     lower_bound = 50.0
-                sigbufs = butter_bandpass_filter(sigbufs, lower_bound, 400.0, sampling_rate)
+                sigbufs = filter_signal(sigbufs, sampling_rate) #butter_bandpass_filter(sigbufs, lower_bound, 400.0, sampling_rate)
             else:
                 sigbufs = butter_bandpass_filter(sigbufs, 0.5, 8.0, sampling_rate) #todo - check if this is good for EEG
         
@@ -250,16 +265,23 @@ class EdfAnalyzer:
         return emgData, chunks, freq, InertialData, InertialFreq
     
     @staticmethod
-    def ICA(matrix, n_components):
-        transformer = FastICA(n_components=n_components, random_state=0 )
+    def ICA(matrix, n_components=16, whiten=True):
+        if (whiten):
+            whiten = 'unit-variance'
+        transformer = FastICA(n_components=n_components, random_state=0, whiten=whiten)
         x= np.transpose(transformer.fit_transform(np.transpose(matrix))) #FAST ICA
         w = transformer.components_ #np.linalg.inv(transformer.mixing_) #transformer.components_ # np.dot(unmixing_matrix, self.whitening_)
         #K, W, X = picard(matrix, n_components=n_components, ortho=True, extended=True, max_iter=200)
         return w, x #np.dot(W,K) ,X
     
     @staticmethod
-    def ICA_picard(matrix, n_components):
-        K, W, X = picard(matrix, n_components=n_components, ortho=True, extended=True, max_iter=200)
+    def ICA_picard(matrix, n_components=16, whiten=True):
+        if (whiten):
+            whiten = 'unit-variance'
+        K, W, X = picard(matrix, n_components=n_components,
+                          ortho=True, extended=True, max_iter=300, whiten=whiten)
+        if( not whiten):
+            return W, X
         return np.dot(W,K) ,X
     
     @staticmethod

@@ -185,9 +185,10 @@ def default_heatmap_with_channels_removal(W, electrodes_to_remove, save_differen
             clearPlot()
 
 
-def get_heatmap(image_path, number_of_channels, W, reverse_order=False, save_different_figures = False, save_at = "heatmaps", extra_headers = None, default_pic=False):
+def get_heatmap(image_path, number_of_channels, W, reverse_order=False, save_different_figures = False, save_at = "heatmaps", extra_headers = None, default_pic=False, electrodes_to_remove=[]):
     #reset points
     reset_points()
+    number_of_channels = W.shape[1]
     order = np.arange(number_of_channels)
     if reverse_order:
         order = order[::-1]
@@ -206,7 +207,12 @@ def get_heatmap(image_path, number_of_channels, W, reverse_order=False, save_dif
     # calculations for the heatmap
     inverse = np.absolute(inv(W))
 
-    elecs = np.argmax(inverse, axis=0) + 1
+    new_w = np.zeros((16,number_of_channels))
+    for i in range(number_of_channels):
+        new_w[:,i] = insert_zeros_in_removed_places(inverse[:,i], electrodes_to_remove)
+
+
+    elecs = np.argmax(new_w, axis=0) + 1
 
     grid_y, grid_x = np.mgrid[1:height + 1, 1:width + 1]
 
@@ -214,11 +220,12 @@ def get_heatmap(image_path, number_of_channels, W, reverse_order=False, save_dif
 
     f_interpolate = []
     for i in range(number_of_channels):
-        f_interpolate.append(griddata(points, inverse[:, i], (grid_x, grid_y), method='linear'))
+        f_interpolate.append(griddata(points, new_w[:, i], (grid_x, grid_y), method='linear'))
 
     if not save_different_figures:
         # plot heatmap - don't delete
-        fig, axs = plt.subplots(2, int(number_of_channels / 2), figsize=(16, 8))
+        ncols = int(number_of_channels / 2) + (number_of_channels % 2)
+        fig, axs = plt.subplots(2, ncols, figsize=(number_of_channels, ncols))
         axs = axs.ravel()
         # plt.show the image
         

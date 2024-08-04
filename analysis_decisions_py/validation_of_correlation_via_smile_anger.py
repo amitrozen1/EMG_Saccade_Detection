@@ -1,22 +1,21 @@
 import os
-from General.HelperFunctions import GetSessions, cleanSpace, reshape_num_channels, RemoveRowFromMatrix
+from General.HelperFunctions import GetSessions
 import numpy as np
 from scipy.stats import zscore
 from General.init import *
 from tqdm import tqdm
-import re
 from General.HelperFunctions import getPathsFromSessionFolder, remove_rows_from_matrix
 from EDF.EdfAnalyzer import EdfAnalyzer
-from ComponentAnalysis.ComponentExtractor import GetCorrugatorComponent, GetNoseComponent, GetSideEyeComponent, GetZygomaticusComponent
 from General.HelperFunctions import get_review_data
 from ComponentAnalysis.ComponentExtractor import open_w_if_exisis, load_special_components_if_exists, get_special_component_indexes, save_new_w
 from General.CorrolationMethods import get_max_xcorr_1d, get_max_xcorr_pearson_1d, windowed_lagged_cross_correlation, dtai_dist_dtw_pearson_over_seconds, cross_correlation_max_pearson, cross_correlation_max_pearson_ndim
 import pandas as pd
 import matplotlib.pyplot as plt
 from General.PlotFunctions import plotDataFromBothChunks, clearPlot
-from General.tam.tam_correlation import tam_corr
 from analysis_decisions_py.cleaning_signal import remove_emg_artifacts
 import ast
+from ComponentAnalysis.ReviewComponents_batch2 import GetSessionsBatch2, open_w_if_exists_batch2, get_bad_electrode, get_chosen_comps, is_no_review_folder
+
 
 default_rms_size_ms = 400
 default_downsample_in_ms = 50 # 50 hz
@@ -64,6 +63,40 @@ def load_single_gyro_data_smile_and_angry(session, p, rms_size_ms = default_rms_
 
     return [smile_data, compare_to_data]
 
+def load_single_data_smile_and_angry_batch2(session, p, rms_size_ms = default_rms_size_ms, downsample_window_ms = default_downsample_in_ms, compare_to = "angry"):
+    path_and_corrections = getPathsFromSessionFolder(os.path.join(data_path, session))
+
+    Y, chunks, freq = EdfAnalyzer.Read(path_and_corrections[p][0], path_and_corrections[p][1], downsample_window_ms)
+    elecs_to_remove = get_bad_electrode(session, p)
+    Y = remove_rows_from_matrix(Y, elecs_to_remove)
+    Y = zscore(Y, axis=1)
+
+    w = open_w_if_exists_batch2(session, p)
+    
+    if ( w is None):
+        w, independentComponents = EdfAnalyzer.ICA(Y, 16-len(elecs_to_remove))
+        #save new w.. but it supposed to exist anyway..
+    else:
+        independentComponents = np.dot(w, Y)
+
+    special_comps_index = get_chosen_comps(session, p)
+
+    independentComponents = independentComponents[special_comps_index, :]
+    independentComponents = remove_emg_artifacts(independentComponents)
+    independentComponents = EdfAnalyzer.window_rms(independentComponents, rms_size_ms, freq)
+    independentComponents = EdfAnalyzer.resample_by_averaging_every_n(independentComponents, downsample_window_ms, freq)
+
+    smile_s = int(chunks["smile__0"].Start.Time)
+    smile_e = int(chunks["smile__2"].End.Time)
+
+    compare_to_s = int(chunks[f"{compare_to}__0"].Start.Time)
+    compare_to_e = int(chunks[f"{compare_to}__2"].End.Time)
+
+    smile_data = independentComponents[:, smile_s:smile_e]
+    compare_to_data = independentComponents[:, compare_to_s:compare_to_e]
+
+    return [smile_data, compare_to_data] 
+
 
 def load_signle_data_smile_and_angry(session, p, rms_size_ms = default_rms_size_ms, downsample_window_ms = default_downsample_in_ms, compare_to = "angry"):
     path_and_corrections = getPathsFromSessionFolder(os.path.join(data_path, session))
@@ -105,7 +138,7 @@ def load_general_dyad_data(sessions, p_s, rms_size_ms = default_rms_size_ms, dow
     vectors = []
     for i in range(2):
         if (data_type == "emg"):
-            chunk_data = load_signle_data_smile_and_angry(sessions[i], p_s[i], rms_size_ms, downsample_window_ms, compare_to)
+            chunk_data = load_single_data_smile_and_angry_batch2(sessions[i], p_s[i], rms_size_ms, downsample_window_ms, compare_to)
         elif (data_type == "gyro"):
             chunk_data = load_single_gyro_data_smile_and_angry(sessions[i], p_s[i], rms_size_ms, downsample_window_ms, compare_to)
             if chunk_data is None:
@@ -307,7 +340,7 @@ def compute_pseudo_and_real_dyads_2(rms_size_ms = default_rms_size_ms, downsampl
     mistaken_saved_as_arr = False
 
     if (not os.path.exists(mean_comps_csv_file_path)):
-        sessions = GetSessions(data_path)
+        sessions = GetSessionsBatch2()  # GetSessions(data_path)
         all_corrs = []
         for session in tqdm(sessions):
             corrs = compute_correlation_row_2(session, rms_size_ms, downsample_window_ms, compare_to, window_size_ms , max_lag_ms, data_type)

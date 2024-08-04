@@ -1,10 +1,12 @@
 from dataclasses import dataclass
 from enum import Enum
 import base64
+import os
 
 class ColType(Enum):
     Text = 0
     Photo = 1
+    PhotoSrc = 2
 
 def toHtmlColumn(s):
     return f"<td align='center'>{s}</td>"
@@ -22,6 +24,8 @@ class HtmlCol:
             return toHtmlColumn(self.Value)
         elif ( self.Type == ColType.Photo ):
             return toHtmlPhotoColumn(self.Value)
+        elif ( self.Type == ColType.PhotoSrc ):
+            return toHtmlColumn(f'<img src="{self.Value}" style="display: block; max-width:400px; max-height:400px; width: auto; height: auto;" />')
 
 
 def initHtmlDictionary(titles):
@@ -96,10 +100,26 @@ def PlotDictionary(dict):
 def toImageHtmlCol(bytes):
     return HtmlCol(ColType.Photo, base64.b64encode(bytes).decode('ascii'))
 
+def toLinkPhotoHtmlCol(bytes):
+    return HtmlCol(ColType.Text, f'<a href="data:image/png;base64, {base64.b64encode(bytes).decode("ascii")}" target="_blank">heatmap</a>')
+
+def toLinkPhotoHtmlColFromPath(p):
+    if ( not os.path.exists(p) ):
+        return toTextHtmlCol("No such file")
+    with open(p, "rb") as f:
+        bytes = f.read()
+    return toLinkPhotoHtmlCol(bytes)
+
 def toImageHtmlColFromPath(p):
+    if ( not os.path.exists(p) ):
+        return toTextHtmlCol("No such file")
     with open(p, "rb") as f:
         bytes = f.read()
     return toImageHtmlCol(bytes)
+
+
+def toImageHtmlColFromPathWithSrc(p):
+    return HtmlCol(ColType.PhotoSrc, p)
 
 def toTextHtmlCol(obj):
     return HtmlCol(ColType.Text, str(obj))
