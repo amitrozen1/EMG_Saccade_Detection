@@ -18,7 +18,7 @@ def is_original_ordered(first_story):
 
 
 # Load the data from the uploaded Excel file
-file_path = r"C:\Liron\DataEmg\new_batch\results_2024\RMS_50_downsample_5_window_3_maxlag_3_after_pre_reg_dwt_db15_corrEachComp_scipy_resample_noWeightedCorr_1direct_allow_05_delay_noz_noartrem_with_var_Neg2Pos5Puller4_batch2.csv"
+file_path = r"c:\Liron\DataEmg\new_batch\results_2024\RMS_50_downsample_5_window_3_maxlag_3_after_pre_reg_dwt_db15_corrEachComp_scipy_resample_noWeightedCorr_1direct_allow_05_delay_noz_noartrem_with_var_Neg2Pos5Puller4_batch2_all_with_ok_with_complist.csv"
 
 data = pd.read_csv(file_path)
 
@@ -72,6 +72,9 @@ for index, (odd_row, even_row) in enumerate(zip(data_odd.itertuples(), data_even
         new_df.at[index, 'ListenerChoice'] = int(0)
     else:
         new_df.at[index, 'ListenerChoice'] = int(1)
+
+    if hasattr(odd_row,"ok_electrodes"):
+        new_df.at[index, 'ok_electrodes'] = odd_row.ok_electrodes
 
     if ( odd_row.ReaderChoice == 1):
         new_df.at[index, 'ReaderChoice'] = int(0)

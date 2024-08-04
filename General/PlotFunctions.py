@@ -50,7 +50,7 @@ def plot_chunk_data_one_tick_per_component(X, title, ticks = [], subtitles = Non
     #plt.show()
 
 
-def plotDataFromBothChunks(X1, X2, ticks1=[], ticks2=[], title="smiles", num_components = 16, saveAt="", importance_order=None):
+def plotDataFromBothChunks(X1, X2, ticks1=[], ticks2=[], title="smiles", num_components = 16, saveAt="", importance_order=None, extra_titles = None):
     total_graph_size = (num_components*2,4)
 
     ticks1 = fixTicks(ticks1)
@@ -65,8 +65,14 @@ def plotDataFromBothChunks(X1, X2, ticks1=[], ticks2=[], title="smiles", num_com
 
         y1 = X1[indexA]
         y2 = X2[indexB]
-        plot(y1, range(0,y1.shape[0]), total_graph_size,(index*2, 0), "component %d" % indexA, 'r', ticks1 )
-        plot(y2, range(0,y2.shape[0]), total_graph_size,(index*2, 2), "component %d" % indexB, 'b', ticks2 )
+        if extra_titles is not None:
+            title_a = extra_titles[A][indexA]
+            title_b = extra_titles[B][indexB]
+        else:
+            title_a = "component %d" % indexA
+            title_b = "component %d" % indexB
+        plot(y1, range(0,y1.shape[0]), total_graph_size,(index*2, 0), title_a, 'r', ticks1 )
+        plot(y2, range(0,y2.shape[0]), total_graph_size,(index*2, 2), title_b, 'b', ticks2 )
         #index = index+1
         
     plt.suptitle(title)

@@ -50,7 +50,7 @@ def run_emg_analysis_batch2(main_corrolation_func, rms_size_ms, downsampleWindow
             independentComponents = EdfAnalyzer.window_rms(independentComponents, rms_size_ms, freq)
             independentComponents = EdfAnalyzer.resample_by_averaging_every_n(independentComponents, downsampleWindowInMs, freq)
 
-            special_comps_index = get_chosen_comps(session, p)            
+            special_comps_index = get_chosen_comps(session, p)         
             
             total_max = np.max(independentComponents, axis=0)
             independentComponents = independentComponents[special_comps_index, :]
@@ -124,16 +124,31 @@ def get_neg_pos_indexes(independentComponents, chunks):
 
     return [neg_comp, pos_comp]
 
-def get_sessions():
+def get_ok_sessions():
     if current_batch == 1:
         sessions =  GetSessions(data_path)
         sessions.remove("20122022_1415")
     else:
-        sessions = GetSessionsBatch2()
+        #return ["10052023_1430", "09052023_1215", "08052023_1430"]
+        excluded_list = ["25122023_1400", "25122023_1000", "21122023_1230", "18042023_1415", "25122023_1200", "30032023_1100", "30112023_1400", "22052023_1430"]
+        extra = ["17052023_1430", "06122023_1000"]
+        excluded_list += extra
+        # can be improved "21122023_1500", "17052023_1430", "11122023_1400", "06122023_1000	"
+        sessions = GetSessions(data_path)
+        for session in excluded_list:
+            if session in sessions:
+                sessions.remove(session)
+
+        # 09052023_1630 finished battery in A before time!!!
+        if "09052023_1630" in sessions:
+            sessions.remove("09052023_1630")
+
     return sessions
 
 def run_emg_analysis(main_corrolation_func, rms_size_ms, downsampleWindowInMs, windowForCorrInMs, numOfPixelsForXCorrStep, headers, csv_out_path, with_actress=False, hard_noise_remove_for_actress = False):
-    sessions_list = get_sessions()
+    more_comps = ["25122023_1000", "25122023_1200", "25122023_1400", "21122023_1230", "06122023_1000"]
+    sessions_list = more_comps #get_ok_sessions() #GetSessions(data_path)
+    #get_ok_sessions()
 
     all_correlations = []
 
@@ -148,6 +163,7 @@ def run_emg_analysis(main_corrolation_func, rms_size_ms, downsampleWindowInMs, w
 
         both_componenets = [[],[]]
         both_chunks = [[],[]]
+        special_comps_array = [[],[]]
 
         path_and_corrections = getPathsFromSessionFolder(os.path.join(data_path, session))
         for p in [A,B]:
@@ -192,6 +208,9 @@ def run_emg_analysis(main_corrolation_func, rms_size_ms, downsampleWindowInMs, w
             special_comps_index += [GetComponentByElecrodesNumber(w, elecs_to_remove[p], [2])]
             special_comps_index += [GetComponentByElecrodesNumber(w, elecs_to_remove[p], [5])]
             special_comps_index +=  [GetLipCornerDownPuller(w, elecs_to_remove[p])]
+
+            special_comps_array[p] = special_comps_index
+
             independentComponents = independentComponents[special_comps_index, :]
 
             both_chunks[p] = EdfAnalyzer.combine_callibration_ticks(chunks)
@@ -207,7 +226,7 @@ def run_emg_analysis(main_corrolation_func, rms_size_ms, downsampleWindowInMs, w
             corr_results = main_corrolation_func(session, both_componenets, both_chunks)
 
         if (current_batch == 1):
-            choices = read_experiment_csv_batch2(data_path, session) #loadChoiceFromSession(data_path, session)
+            choices = loadChoiceFromSession(data_path, session)
             for i in range(len(corr_results)):
                 result = corr_results[i]
                 key = result[1]
@@ -233,16 +252,16 @@ def run_emg_analysis(main_corrolation_func, rms_size_ms, downsampleWindowInMs, w
                         for choice in choices:
                             uc_story_number = choice[0].split('.')[0]
                             if ( story_number == uc_story_number ):
-                                corr_results[i] = result + choice[1:]
+                                corr_results[i] = result + choice[1:] + [session in get_ok_sessions()] + [str(special_comps_array[A]), str(special_comps_array[B])]
                                 break
-        
+
         all_correlations += corr_results
         del independentComponents
         cleanSpace()
         print("finished session " + session)
     
     if current_batch == 2:
-        headers += ["confidence_A", "confidence_B"]
+        headers += ["confidence_A", "confidence_B", "ok_electrodes", "special_comps_A", "special_comps_B"]
 
     if (csv_out_path!= None):
         df = pd.DataFrame(all_correlations)

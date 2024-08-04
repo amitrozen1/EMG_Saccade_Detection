@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from Hilas_component_classification.classifying_ica_components import wavelet_denoising, whiten, center
 from scipy import signal
 
-edf_path = r"C:\Liron\neuroscience\PHD\First year experiment - EMG\StoriesFromActress\EDF\1_Recording_00_SD.edf"
+edf_path = r"C:\Liron\neuroscience\PHD\First year experiment - EMG\StoriesFromActress\EDF\actress_filtered.edf"
 image_path = r"C:\Liron\neuroscience\PHD\First year experiment - EMG\StoriesFromActress\img_cropped_mirror.png"
 correct_value = -0.5 # the correct value is just a random RT value as I did not find a way to get the reall correct value.
 # it doesn't matter to fit the actual timing in reality but to the start of the signal when she speaks as I edited the audio files according to that.
@@ -116,7 +116,7 @@ def export_actress_chunked_data_with_dwt(downsampleWindowInMs=20, rms_size_ms=10
     f = pyedflib.EdfReader(edf_path)
     Y, freq = EdfAnalyzer.readEdf(f)
     chunks = read_annotations(f, freq, downsampleWindowInMs, correct_value)
-    elecs_to_remove = [0]
+    elecs_to_remove = []
     #Y, chunks, freq = EdfAnalyzer.Read(edf_path, correct_value, downsample_window_in_ms=downsampleWindowInMs)
     chunks_as_dict = build_actress_chunks(chunks, downsampleWindowInMs)
     Y = remove_rows_from_matrix(Y, elecs_to_remove)
@@ -134,7 +134,7 @@ def export_actress_chunked_data_with_dwt(downsampleWindowInMs=20, rms_size_ms=10
         independentComponents = np.matmul(w,Y)
 
     #change according to heatmap.
-    special_comps_index = [8,14,0,9]
+    special_comps_index = [5, 15, 2, 14, 4, 10, 1] #[8,14,0,9]
     #get_special_component_indexes(w, elecs_to_remove)
     #get_heatmap(image_path, 16, w, electrodes_to_remove=elecs_to_remove)
 
@@ -143,8 +143,8 @@ def export_actress_chunked_data_with_dwt(downsampleWindowInMs=20, rms_size_ms=10
     hz = int(1000/downsampleWindowInMs)
     independentComponents = signal.resample(independentComponents, int(independentComponents.shape[1] / freq * hz), axis=1)
     
-    special_max = np.max(independentComponents, axis=0)
-    independentComponents = np.vstack((independentComponents, special_max))
+    # special_max = np.max(independentComponents, axis=0)
+    # independentComponents = np.vstack((independentComponents, special_max))
 
     for key in chunks_as_dict:
         chunk = chunks_as_dict[key]

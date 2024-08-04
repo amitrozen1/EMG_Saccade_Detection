@@ -323,9 +323,13 @@ def create_html_batch2(data_path = data_path):
     
     SaveHtmlFile(html_dict, os.path.join(data_path, "After_choices_batch_2_au6.html"))
 
+def get_new_list_sessions(data_path):
+    excluded_list = [ "25122023_1400", "25122023_1000", "21122023_1230", "18042023_1415", "25122023_1200", "08052023_1430", "09052023_1215", "10052023_1430", "30032023_1100", "30112023_1400", "20042023_1015"]
+    sessions = GetSessions(data_path)
+    return [s for s in sessions if s not in excluded_list]
 
 def create_html_after_dwt(data_path = data_path):
-    session_list = GetSessions(data_path) #GetSessionsBatch2()
+    session_list = get_new_list_sessions(data_path) #GetSessions(data_path) #GetSessionsBatch2()
     html_dict = initHtmlDictionary(["sesssion", "participant"] + get_special_component_names() +["whole_heatmap"])
     for session in tqdm(session_list):
         for p in [A,B]:
@@ -338,7 +342,7 @@ def create_html_after_dwt(data_path = data_path):
             addRow(html_dict, [toTextHtmlCol(session), toTextHtmlCol(particiapnt_to_char(p))] +
                     image_cols)
     
-    SaveHtmlFile(html_dict, os.path.join(data_path, "after_db15_hila_batch2.html"))
+    SaveHtmlFile(html_dict, os.path.join(data_path, "after_db15_hila_new_list.html"))
 
 
 def plot_selected_components():

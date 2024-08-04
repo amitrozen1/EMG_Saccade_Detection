@@ -475,11 +475,11 @@ def main_corrolation_of_single_comps(current_session, independentComponents, chu
 
 
 def corr_lag_measurments_n_headers(title):
-    comps_names = get_special_component_names()
-    return corelation_lags_measurments_headers(f"{title}_{comps_names[0]}") + \
-    corelation_lags_measurments_headers(f"{title}_{comps_names[1]}") + \
-    corelation_lags_measurments_headers(f"{title}_{comps_names[2]}") + \
-    corelation_lags_measurments_headers(f"{title}_{comps_names[3]}")
+    comps_names = get_special_component_names(withValenceComps=True)
+    res_headers = []
+    for i in range(len(comps_names)):
+        res_headers += corelation_lags_measurments_headers(f"{title}_{comps_names[i]}")
+    return res_headers
 
 def corr_lag_measurments_n(corrs, lags):
     results = []
@@ -491,8 +491,8 @@ def corrolation_each_comp_with_actress_headers():
     return corr_lag_measurments_n_headers("A_B") + \
     corr_lag_measurments_n_headers("actress_A") + \
     corr_lag_measurments_n_headers("actress_B") + \
-    add_mean_component_headers() + \
-    [f"mean_actress_{comp}" for comp in get_special_component_names()]
+    add_mean_component_headers(True) + \
+    [f"mean_actress_{comp}" for comp in get_special_component_names(True)]
 
 def corrolation_each_comp_with_actress(current_session, independentComponents, chunks, actress_chunks):
     results = []
@@ -505,7 +505,7 @@ def corrolation_each_comp_with_actress(current_session, independentComponents, c
             continue
 
         story_number = key.split("_")[1].split(".")[0]
-        mat_actress = actress_chunks[story_number].data[0:4, :]
+        mat_actress = actress_chunks[story_number].data
 
         for participant in [A,B]:
             chunk = chunks[participant][key]
@@ -513,32 +513,34 @@ def corrolation_each_comp_with_actress(current_session, independentComponents, c
             chunk_end = int(chunk.End.Time)
             chunk_data[participant] = independentComponents[participant][: , chunk_start:chunk_end]
         
-        mean_comps_measurements = add_mean_components(chunk_data[A][0:4], chunk_data[B][0:4])
+        mean_comps_measurements = add_mean_components(chunk_data[A], chunk_data[B])
 
-        mat1 = chunk_data[A][0:4]
-        mat2 = chunk_data[B][0:4]
+        mat1 = chunk_data[A]
+        mat2 = chunk_data[B]
+
+        num_components = mat1.shape[0]
 
         max_len = min(mat1.shape[1], mat2.shape[1])
 
-        corrs = [[],[],[],[]]
-        lags = [[],[],[],[]]
+        corrs = [[] for i in range(num_components)]
+        lags = [[] for i in range(num_components)]
 
         for s in range(0, max_len - numOfPixelsForXCorrWindow , numOfPixelsForXCorrStep):
             e = s + numOfPixelsForXCorrWindow # todo: run again.
 
             direction = "bi-directional"
 
-            for i in range(4):
+            for i in range(num_components):
                 max_corr, max_ind = get_max_xcorr_pearson_1d(mat1[i], mat2[i], max_lag_ms,
                                                     downsampleWindowInMs, s, e, direction, weighted_corr=False, lowess=False)
                 corrs[i].append(max_corr)
                 lags[i].append(max_ind)
 
-        corrs_A_with_actress = [[],[],[],[]]
-        lags_A_with_actress = [[],[],[],[]]
+        corrs_A_with_actress = [[] for i in range(num_components)]
+        lags_A_with_actress = [[] for i in range(num_components)]
 
-        corrs_B_with_actress = [[],[],[],[]]
-        lags_B_with_actress = [[],[],[],[]]
+        corrs_B_with_actress = [[] for i in range(num_components)]
+        lags_B_with_actress = [[] for i in range(num_components)]
 
         corrs_with_actress = [corrs_A_with_actress, corrs_B_with_actress]
         lags_with_actress = [lags_A_with_actress, lags_B_with_actress]
@@ -548,7 +550,7 @@ def corrolation_each_comp_with_actress(current_session, independentComponents, c
             for s in range(0, max_len - numOfPixelsForXCorrWindow , numOfPixelsForXCorrStep):
                 e = s + numOfPixelsForXCorrWindow
                 direction = "bi-directional"
-                for i in range(4):
+                for i in range(num_components):
                     max_corr, max_ind = get_max_xcorr_pearson_1d(mat[i], mat_actress[i], max_lag_ms,
                                                         downsampleWindowInMs, s, e, direction, weighted_corr=False, lowess=False)
                     corrs_with_actress[p][i].append(max_corr)
@@ -560,7 +562,7 @@ def corrolation_each_comp_with_actress(current_session, independentComponents, c
         corr_lag_measurments_n(corrs_with_actress[A], lags_with_actress[A]) + \
         corr_lag_measurments_n(corrs_with_actress[B], lags_with_actress[B]) + \
         mean_comps_measurements + \
-        [np.mean(mat_actress[i]) for i in range(4)]
+        [np.mean(mat_actress[i]) for i in range(num_components)]
         
         results.append(current_result)
     return results
@@ -684,7 +686,7 @@ def main_2():
     run_emg_analysis(main_corrolation_with_mean_comp, rms_size_ms, downsampleWindowInMs, windowForCorrInMs, numOfPixelsForXCorrStep, wrap_in_default_headers(get_main_corrolation_with_mean_comp_headers()), os.path.join(data_path,"results_2024", f"RMS_{rms_size_ms}_downsample_{downsampleWindowInMs}_window_{int(windowForCorrInMs/1000)}_maxlag_{int(max_lag_ms/1000)}_after_decision_and_remove_artifacts_with_callibration_remove_zyg_for_read_no_arctan_nooverlap_with_mean_of_corr_comp_VAR_fixedlag.csv"))
 
 def main_3():
-    run_emg_analysis(main_corrolation_of_single_comps, rms_size_ms, downsampleWindowInMs, windowForCorrInMs, numOfPixelsForXCorrStep, wrap_in_default_headers(get_main_corrolation_of_single_comps_headers(True)), os.path.join(data_path,"results_2024", f"RMS_{rms_size_ms}_downsample_{downsampleWindowInMs}_window_{int(windowForCorrInMs/1000)}_maxlag_{int(max_lag_ms/1000)}_after_pre_reg_dwt_db15_corrEachComp_scipy_resample_noWeightedCorr_1direct_allow_05_delay_noz_noartrem_with_var_Neg2Pos5Puller4_batch2.csv"))
+    run_emg_analysis(main_corrolation_of_single_comps, rms_size_ms, downsampleWindowInMs, windowForCorrInMs, numOfPixelsForXCorrStep, wrap_in_default_headers(get_main_corrolation_of_single_comps_headers(True)), os.path.join(data_path,"results_2024", f"RMS_{rms_size_ms}_downsample_{downsampleWindowInMs}_window_{int(windowForCorrInMs/1000)}_maxlag_{int(max_lag_ms/1000)}_after_pre_reg_dwt_db15_corrEachComp_scipy_resample_noWeightedCorr_1direct_allow_05_delay_noz_noartrem_with_var_Neg2Pos5Puller4_batch2_all_with_ok_with_complist.csv"))
 
 def main_rms():
     global incluce_var
@@ -705,4 +707,4 @@ def main_batch2(new_val_for_max_lag = 3000):
     run_emg_analysis_batch2(main_corrolation, rms_size_ms, downsampleWindowInMs, windowForCorrInMs, numOfPixelsForXCorrStep, wrap_in_default_headers(get_headers()), os.path.join(data_path,"results_2024", f"RMS_{rms_size_ms}_downsample_{downsampleWindowInMs}_window_{int(windowForCorrInMs/1000)}_maxlag_{int(max_lag_ms/1000)}_after_prereg_dwt_2dmaxver.csv"))
 
 def main_corr_with_actress_dwt():
-    run_emg_analysis(corrolation_each_comp_with_actress, rms_size_ms, downsampleWindowInMs, windowForCorrInMs, numOfPixelsForXCorrStep, wrap_in_default_headers(corrolation_each_comp_with_actress_headers()), os.path.join(data_path,"results_2024", f"RMS_{rms_size_ms}_downsample_{downsampleWindowInMs}_window_{int(windowForCorrInMs/1000)}_maxlag_{int(max_lag_ms/1000)}_db15_dwt_coorEachComp_with_actress.csv"), with_actress=True)
+    run_emg_analysis(corrolation_each_comp_with_actress, rms_size_ms, downsampleWindowInMs, windowForCorrInMs, numOfPixelsForXCorrStep, wrap_in_default_headers(corrolation_each_comp_with_actress_headers()), os.path.join(data_path,"results_2024", f"RMS_{rms_size_ms}_downsample_{downsampleWindowInMs}_window_{int(windowForCorrInMs/1000)}_maxlag_{int(max_lag_ms/1000)}_db15_dwt_coorEachComp_with_actress_extra.csv"), with_actress=True)
