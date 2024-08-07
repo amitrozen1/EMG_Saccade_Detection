@@ -51,7 +51,7 @@ def extract_blink_and_data_from_participants(data_path, session):
     one_blink_A = mark_blink_out_of_signal(signal_A_for_identify)
     one_blink_B = mark_blink_out_of_signal(signal_B_for_identify)
 
-    return one_blink_A, one_blink_B, vectorA, vectorB, chunksA, chunksB, compA. compB
+    return one_blink_A, one_blink_B, vectorA, vectorB, chunksA, chunksB, compA, compB
 
 def extract_blinks_2_participants_main(data_path):
     """
@@ -134,7 +134,7 @@ def run_over_all_sessions(data_path, PLV=True, rate_based=True):
     for each session calculates the correlation between the blinks of the participants
     saves the data (blinks and vectors) and different correlation graphs (plv and rate based) to files under the folder 'blinkingGraphsAndData'
     """
-    sessions = GetSessions(data_path)
+    sessions = GetSessions(data_path)[0:1]
     heightA = 0.25
     heightB = 0.25
     for session in sessions:
@@ -245,7 +245,7 @@ def main_all_sessions(data_path, PLV=True, rate_based=True):
     
     # once (at the beginning)
     # don't forget to comment out the line below after the first run
-    # run_over_all_sessions(data_path, PLV, rate_based) 
+    run_over_all_sessions(data_path, PLV, rate_based) 
 
     # only after 'run_over_all_sessions' was executed, don't forget to comment out the line above
     sessions = GetSessions(data_path)
