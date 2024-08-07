@@ -68,7 +68,6 @@ def extract_blinking_component(data_path, session, p, downsample_window_in_ms=1,
         plt.axvline(x=t, color='r')
     plt.show()
     #clearPlot()
-
     return vector, chunks, comp
 
 # not in use for now
@@ -90,7 +89,6 @@ def extract_blinking_component(data_path, session, p, downsample_window_in_ms=1,
 #     plt.show()
 #     return vector[start_time:end_time]
 
-
 def extract_main():
     # shoval, you can play with the windows values up to a point you smooth the signal enough but not too much.
     # too much = loosing valuable information.
@@ -100,7 +98,9 @@ def extract_main():
     print(sessions)
     session = sessions[0]
 
+
     vector, chunks, comp = extract_blinking_component(data_path, session, A, 20, 100)
+
     # vector_mean = np.mean(vector)
     # for key in chunks.keys():
     #     chunk  =  chunks[key]
@@ -109,5 +109,5 @@ def extract_main():
     #     plt.title(key)
     #     plt.show()
     #     clearPlot()
-
     return vector, chunks, comp
+

@@ -40,8 +40,8 @@ def get_callibration_ticks(chunks, freq):
     ticks = [int(t-start) for t in ticks]
     return ticks, start, end
 
-def get_int_list_input_from_user():
-    return [int(x) for x in input("enter components to remove, press enter when finished: ").split()]
+def get_int_list_input_from_user(prompt):
+    return [int(x) for x in input(prompt).split()]
 
 def get_two_argmax_items_from_each_col(matrix):
     argsorted_by_col = np.argsort(matrix, axis=0)
@@ -88,7 +88,7 @@ def extract_eeg_to_file(data_path, session, participant):
     # get_heatmap(os.path.join(data_path, session, f"{particiapnt_to_char(participant)}.jpeg"), 16, w)
     
     # TODO: There's must be an automated way to find the blink component
-    blink_channels = get_int_list_input_from_user()
+    blink_channels = get_int_list_input_from_user(prompt="enter components to remove, press enter when finished: ")
     for blink_channel in blink_channels:
         x[blink_channel, :] = np.zeros_like(x[blink_channel, :])
     

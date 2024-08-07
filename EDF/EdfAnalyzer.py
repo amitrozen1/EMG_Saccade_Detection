@@ -3,11 +3,9 @@ from scipy import signal
 import numpy as np
 from sklearn.decomposition import FastICA
 from sklearn.decomposition import PCA
-import cupy as xp
 from scipy.signal import butter, filtfilt
 from General.HelperFunctions import isMyAnnotation
 from scipy.signal import resample
-from picard import picard
 
 def butter_bandpass(lowcut, highcut, fs, order=5):
         nyq = 0.5 * fs
@@ -30,6 +28,21 @@ def window_rms_single(a, window_size=800):
 
     # Calculate the square root of the averaged squared values
     return np.sqrt(a_squared_convolved)
+
+def filter_signal(data, fs):
+    # apply notch filter to remove 50Hz noise
+    b, a = signal.iirnotch(50, 30, fs)
+    data = signal.filtfilt(b, a, data, axis=1)
+    # apply bandpass filter to remove high frequency noise
+    b, a = signal.butter(4, [35, 350], fs=fs, btype='band')
+    filtered_signal = signal.filtfilt(b, a, data, axis=1)
+    # add notch filter of 200 hz
+    b, a = signal.iirnotch(200, 30, fs)
+    filtered_signal = signal.filtfilt(b, a, filtered_signal)
+    # add notch filter of 100 hz
+    b, a = signal.iirnotch(100, 30, fs)
+    filtered_signal = signal.filtfilt(b, a, filtered_signal)
+    return filtered_signal
 
 
 # def window_rms_single(a, window_size=800):
@@ -114,24 +127,21 @@ class EdfAnalyzer:
         pass
     
     @staticmethod
-    def readEdf(f : pyedflib.EdfReader, doButter = True, forEEG = False):
+    def readEdf(f : pyedflib.EdfReader, doButter = True, forEEG = False, hard_noise_removal=False):
         sampling_rate = int(f.getSampleFrequency(0))
         n = 16
-        # num_sets = 1
-        # size_limit = int(f.getNSamples()[0] / num_sets)
-        # #read EDF
-        # sigbufs = np.zeros((n, size_limit))
-        # for i in np.arange(n):
-        #     sigbufs[i, :] = f.readSignal(i, start=0, n=size_limit)
-        
         sigbufs = np.array([f.readSignal(i) for i in range(0,n)])
         #Filter before ICA
         sigbufs = NotchFilterSignal(sigbufs, sampling_rate)
-        if (doButter):
-            if ( not forEEG):
-                sigbufs = butter_bandpass_filter(sigbufs, 20.0, 400.0, sampling_rate)
-            else:
-                sigbufs = butter_bandpass_filter(sigbufs, 0.5, 8.0, sampling_rate) #todo - check if this is good for EEG
+        
+        lower_bound = 20.0
+        if ( hard_noise_removal ):
+            lower_bound = 50.0
+
+        if forEEG:
+            sigbufs = butter_bandpass_filter(sigbufs, 0.5, 8.0, sampling_rate)
+        elif (doButter):
+            sigbufs = filter_signal(sigbufs, sampling_rate) #butter_bandpass_filter(sigbufs, lower_bound, 400.0, sampling_rate)
         
         return sigbufs, sampling_rate
     
@@ -158,6 +168,23 @@ class EdfAnalyzer:
     @staticmethod
     def getCallibrationTicks(chunks, calibration_state_to_analyze = "smile"):
         return GetCallibrationsTicks(chunks, calibration_state_to_analyze)
+
+
+    @staticmethod
+    def combine_callibration_ticks(chunks):
+        states = ["smile", "angry", "blink"]
+        for state in states:
+            start = chunks[state + "__0"].Start.Time
+            end = chunks[state + "__2"].End.Time
+            for i in range(3):
+                key = state + "__" + str(i)
+                del chunks[key]
+            chunks[state] = Chunk()
+            chunks[state].Start = Annotation()
+            chunks[state].Start.Time = start
+            chunks[state].End = Annotation()
+            chunks[state].End.Time = end
+        return chunks
 
     @staticmethod
     def getAnnotationChunks(f : pyedflib.EdfReader, correctBy, RmsDownsampleWindow = 1):
@@ -236,20 +263,29 @@ class EdfAnalyzer:
         return emgData, chunks, freq, InertialData, InertialFreq
     
     @staticmethod
-    def ICA(matrix, n_components):
-        transformer = FastICA(n_components=n_components, random_state=0 )
+    def ICA(matrix, n_components=16, whiten=True):
+        if (whiten):
+            whiten = 'unit-variance'
+        transformer = FastICA(n_components=n_components, random_state=0, whiten=whiten)
         x= np.transpose(transformer.fit_transform(np.transpose(matrix))) #FAST ICA
         w = transformer.components_ #np.linalg.inv(transformer.mixing_) #transformer.components_ # np.dot(unmixing_matrix, self.whitening_)
         #K, W, X = picard(matrix, n_components=n_components, ortho=True, extended=True, max_iter=200)
         return w, x #np.dot(W,K) ,X
     
     @staticmethod
-    def ICA_picard(matrix, n_components):
-        K, W, X = picard(matrix, n_components=n_components, ortho=True, extended=True, max_iter=200)
+    def ICA_picard(matrix, n_components=16, whiten=True):
+        from picard import picard
+        if (whiten):
+            whiten = 'unit-variance'
+        K, W, X = picard(matrix, n_components=n_components,
+                          ortho=True, extended=True, max_iter=300, whiten=whiten)
+        if( not whiten):
+            return W, X
         return np.dot(W,K) ,X
     
     @staticmethod
     def PCA(matrix, n_components):
+        import cupy as xp
         transformer = PCA(n_components=n_components, random_state=0)
         x = xp.transpose(transformer.fit_transform(xp.transpose(matrix)))
         w = transformer.components_

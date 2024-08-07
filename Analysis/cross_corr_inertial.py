@@ -1,14 +1,15 @@
 from General.init import *
-from Analysis.analysis_runner import run_inertial_analysis
+from Analysis.analysis_runner import run_inertial_analysis, run_gyro_analysis
 import os
-from General.CorrolationMethods import dtai_dist_dtw_pearson_over_seconds, get_max_xcorr_1d
+from General.CorrolationMethods import get_max_xcorr_pearson_1d
 import numpy as np
 
 downsample_window_in_ms = 20
-rms_window_in_ms = 100
-windowForCorrInMs = 1000
+rms_window_in_ms = 400
+windowForCorrInMs = 2000
 numOfPixelsForXCorrWindow = windowForCorrInMs//downsample_window_in_ms
-numOfPixelsForXCorrStep = (windowForCorrInMs//2) // downsample_window_in_ms
+numOfPixelsForXCorrStep = numOfPixelsForXCorrWindow
+max_lag_ms = 3000
 
 def wrap_in_default_headers(headers):
     return ["session", "key","action"] + headers + ['whoseReading', 'isChoiceA', 'isChoiceB', 'rtChoiceA', 'rtChoiceB', 'isOther', 'ChoseTogether']
@@ -16,8 +17,8 @@ def wrap_in_default_headers(headers):
 def get_headers():
     return corelation_lags_measurments_headers("inertial_max_comp") + \
         corelation_lags_measurments_headers("inertial_rms_comp") + \
-        ["inertial_dtw_max_comp", "inertial_dtw_dist_max_comp"] + \
-        ["inertial_dtw_rms_comp", "inertial_dtw_dist_rms_comp"]
+        ["mean_max_comp_A", "mean_max_comp_B"] + \
+        ["mean_rms_comp_A", "mean_rms_comp_B"]
 
 
 def corelation_lags_measurments(correlations, lags):
@@ -52,7 +53,6 @@ def main_corrolation(current_session, independentComponents, chunks):
         rms_comp_max_corrs = np.array([])
         rms_comp_max_corr_lags = np.array([])
 
-        max_lag_ms = windowForCorrInMs
         #jumps = numOfPixelsForXCorrWindow
         if len(mat1_max.shape) == 1:
             max_len = min(mat1_max.shape[0], mat2_max.shape[0])
@@ -60,6 +60,8 @@ def main_corrolation(current_session, independentComponents, chunks):
             max_len = min(mat1_max.shape[1], mat2_max.shape[1])
         
         action = key.split("_")[0]
+        if ( action in ["smile", "angry", "blink"]):
+            continue
         current_reader = A
         if ( action.lower() == "reading" ):
             current_reader = reading_order.pop(0)
@@ -67,14 +69,14 @@ def main_corrolation(current_session, independentComponents, chunks):
         for i, s in enumerate(range(0, max_len - numOfPixelsForXCorrWindow , numOfPixelsForXCorrStep)): #not using jumps.
             e = s + numOfPixelsForXCorrWindow
             if ( action.lower() == "reading" and current_reader == A):
-                max_comp_max_corr, max_comp_max_lag = get_max_xcorr_1d(mat2_max, mat1_max, max_lag_ms,
+                max_comp_max_corr, max_comp_max_lag = get_max_xcorr_pearson_1d(mat2_max, mat1_max, max_lag_ms,
                                                     downsample_window_in_ms, s, e, action)
-                rms_comp_max_corr, rms_comp_max_lag = get_max_xcorr_1d(mat2_rms, mat1_rms, max_lag_ms,
+                rms_comp_max_corr, rms_comp_max_lag = get_max_xcorr_pearson_1d(mat2_rms, mat1_rms, max_lag_ms,
                                                     downsample_window_in_ms, s, e, action)
             else:    
-                max_comp_max_corr, max_comp_max_lag = get_max_xcorr_1d(mat1_max, mat2_max, max_lag_ms,
+                max_comp_max_corr, max_comp_max_lag = get_max_xcorr_pearson_1d(mat1_max, mat2_max, max_lag_ms,
                                                     downsample_window_in_ms, s, e, action)
-                rms_comp_max_corr, rms_comp_max_lag = get_max_xcorr_1d(mat1_rms, mat2_rms, max_lag_ms,
+                rms_comp_max_corr, rms_comp_max_lag = get_max_xcorr_pearson_1d(mat1_rms, mat2_rms, max_lag_ms,
                                                     downsample_window_in_ms, s, e, action)
 
             max_comp_max_corrs = np.append(max_comp_max_corrs, max_comp_max_corr)
@@ -83,28 +85,24 @@ def main_corrolation(current_session, independentComponents, chunks):
             rms_comp_max_corrs = np.append(rms_comp_max_corrs, rms_comp_max_corr)
             rms_comp_max_corr_lags = np.append(rms_comp_max_corr_lags, rms_comp_max_lag)
 
-
-
-        dtw_max_comp, dist_max_comp = dtai_dist_dtw_pearson_over_seconds(mat1_max, 
-                                                    mat2_max,
-                                                    max_lag_ms // downsample_window_in_ms)
-        
-        dtw_rms_comp, dist_rms_comp = dtai_dist_dtw_pearson_over_seconds(mat1_rms,
-                                                    mat2_rms,
-                                                    max_lag_ms // downsample_window_in_ms)
-
         current_result = [current_session, key, action] + \
             corelation_lags_measurments(max_comp_max_corrs, max_comp_max_corr_lags) + \
             corelation_lags_measurments(rms_comp_max_corrs, rms_comp_max_corr_lags) + \
-            [dtw_max_comp, dist_max_comp] + \
-            [dtw_rms_comp, dist_rms_comp]
+            [np.mean(mat1_max), np.mean(mat2_max)] + \
+            [np.mean(mat1_rms), np.mean(mat2_rms)]
         
         results.append(current_result)
     
     return results
 
-def main():
+def main_accelerometer():
     headers = wrap_in_default_headers(get_headers())
     analysis_path = os.path.join(data_path, "results_2024")
-    csv_out_path = os.path.join(analysis_path, "inertial_correlations_just_acc_corrected.csv")
+    csv_out_path = os.path.join(analysis_path, f"RMS_{rms_window_in_ms}_downsample_{downsample_window_in_ms}_window_{int(windowForCorrInMs/1000)}_maxlag_{int(max_lag_ms/1000)}_accelerometer_pearson_correlations.csv")
     run_inertial_analysis(main_corrolation, rms_window_in_ms, downsample_window_in_ms, windowForCorrInMs, numOfPixelsForXCorrStep, headers, csv_out_path)
+
+def main_gryo():
+    headers = wrap_in_default_headers(get_headers())
+    analysis_path = os.path.join(data_path, "results_2024")
+    csv_out_path = os.path.join(analysis_path, f"RMS_{rms_window_in_ms}_downsample_{downsample_window_in_ms}_window_{int(windowForCorrInMs/1000)}_maxlag_{int(max_lag_ms/1000)}_gyro_pearson_correlations_no_artifact_remove.csv")
+    run_gyro_analysis(main_corrolation, rms_window_in_ms, downsample_window_in_ms, windowForCorrInMs, numOfPixelsForXCorrStep, headers, csv_out_path)

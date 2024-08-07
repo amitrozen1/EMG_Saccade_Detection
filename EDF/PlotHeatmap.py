@@ -9,6 +9,7 @@ import pyedflib
 from EDF.EdfAnalyzer import EdfAnalyzer
 from General.PlotFunctions import savePlot, clearPlot
 from scipy.stats import zscore
+from General.init import *
 
 
 # electrode coordinates (empty if need to be obtained)
@@ -94,11 +95,13 @@ def insert_zeros_in_removed_places(vector, electrodes_to_remove):
         vector = np.insert(vector, electrode, 0)
     return vector
 
-def default_heatmap_with_channels_removal(W, electrodes_to_remove, save_different_figures=False, save_at="heatmaps", extra_headers=None):
+def default_heatmap_with_channels_removal(W, electrodes_to_remove, save_different_figures=False, save_at="heatmaps", extra_headers=None, selected=[], save_whole_heatmap=False):
     #reset points
     reset_points()
     number_of_channels = W.shape[1]
     order = np.arange(number_of_channels)
+
+    should_print_only_selected = len(selected) > 0
 
     image_path = r"C:\Liron\DataEmg\Try\04122022_1545\A.jpeg"
     x_coor = [324, 209, 179, 251, 247, 178, 233, 302, 362, 251, 189, 178, 225, 306, 302, 404]
@@ -131,42 +134,66 @@ def default_heatmap_with_channels_removal(W, electrodes_to_remove, save_differen
         f_interpolate.append(griddata(points, current, (grid_x, grid_y), method='linear'))
 
     if not save_different_figures:
+
+        if should_print_only_selected:
+            ncols = int(len(selected) / 2) + (len(selected) % 2)
+            fig, axs = plt.subplots(2, ncols, figsize=(number_of_channels, ncols))
+        else:
         # plot heatmap - don't delete
-        ncols = int(number_of_channels / 2) + (number_of_channels % 2)
-        fig, axs = plt.subplots(2, ncols, figsize=(number_of_channels, ncols))
-        axs = axs.ravel()
-        # plt.show the image
+            ncols = int(number_of_channels / 2) + (number_of_channels % 2)
+            fig, axs = plt.subplots(2, ncols, figsize=(number_of_channels, ncols))
         
+        axs = axs.ravel()
+        
+        plot_counter = 0
         for i in range(number_of_channels):
-            axs[i].imshow(image)
-            axs[i].pcolormesh(f_interpolate[order[i]], cmap='jet', alpha=0.5)
+            if should_print_only_selected and i not in selected:
+                continue
+            axs[plot_counter].imshow(image)
+            axs[plot_counter].pcolormesh(f_interpolate[order[i]], cmap='jet', alpha=0.5)
             if extra_headers is not None:
-                axs[i].set_title(f"IC_{i+1}-e_{elecs[i]}\n{extra_headers[i]}")
+                axs[plot_counter].set_title(f"IC_{i+1}-e_{elecs[i]}\n{extra_headers[i]}")
             else:
-                axs[i].set_title(f"IC_{i+1}-e_{elecs[i]}")
-            axs[i].axis('off')
+                axs[plot_counter].set_title(f"IC_{i+1}-e_{elecs[i]}")
+            axs[plot_counter].axis('off')
+            plot_counter += 1
 
         fig.tight_layout()
         fig.canvas.draw()
         fig.canvas.flush_events()
-        plt.show()
+        if ( save_whole_heatmap ):
+            savePlot(os.path.join(save_at, f"whole_heatmap{saved_images_extention}"))
+            clearPlot()
+        else:
+            plt.show()
     else:
-        create_folder_if_not_exists(os.path.join(os.path.dirname(image_path), save_at))
+        create_folder_if_not_exists(save_at)
         for i in range(number_of_channels):
-            plt.figure(dpi = 1200)
+            if ( should_print_only_selected and i not in selected):
+                continue
+            filename = f"IC_{i + 1}-e_{elecs[i]}{saved_images_extention}"
+            if ( should_print_only_selected):
+                # i index inside selected
+                filename = f"{extra_headers[selected.index(i)]}{saved_images_extention}"
+            plt.figure(dpi = 400)
+            #hide x and y axis:
+            plt.axis('off')
             plt.imshow(image)
             plt.pcolormesh(f_interpolate[order[i]], cmap='jet', alpha=0.5)
             plt.title(f"IC_{i + 1}-e_{elecs[i]}")
-            savePlot(os.path.join(os.path.dirname(image_path), save_at, f"IC_{i + 1}-e_{elecs[i]}.png"))
+            savePlot(os.path.join(save_at, filename))
             clearPlot()
 
 
-def get_heatmap(image_path, number_of_channels, W, reverse_order=False, save_different_figures = False, save_at = "heatmaps", extra_headers = None, default_pic=False):
+def get_heatmap(image_path, number_of_channels, W, reverse_order=False, save_different_figures = False, save_at = "heatmaps", extra_headers = None, default_pic=False, electrodes_to_remove=[]):
     #reset points
     reset_points()
+    number_of_channels = W.shape[1]
     order = np.arange(number_of_channels)
     if reverse_order:
         order = order[::-1]
+    
+    global x_coor, y_coor
 
     if default_pic:
         image_path = r"C:\Liron\DataEmg\Try\04122022_1545\A.jpeg"
@@ -180,7 +207,12 @@ def get_heatmap(image_path, number_of_channels, W, reverse_order=False, save_dif
     # calculations for the heatmap
     inverse = np.absolute(inv(W))
 
-    elecs = np.argmax(inverse, axis=0) + 1
+    new_w = np.zeros((16,number_of_channels))
+    for i in range(number_of_channels):
+        new_w[:,i] = insert_zeros_in_removed_places(inverse[:,i], electrodes_to_remove)
+
+
+    elecs = np.argmax(new_w, axis=0) + 1
 
     grid_y, grid_x = np.mgrid[1:height + 1, 1:width + 1]
 
@@ -188,11 +220,12 @@ def get_heatmap(image_path, number_of_channels, W, reverse_order=False, save_dif
 
     f_interpolate = []
     for i in range(number_of_channels):
-        f_interpolate.append(griddata(points, inverse[:, i], (grid_x, grid_y), method='linear'))
+        f_interpolate.append(griddata(points, new_w[:, i], (grid_x, grid_y), method='linear'))
 
     if not save_different_figures:
         # plot heatmap - don't delete
-        fig, axs = plt.subplots(2, int(number_of_channels / 2), figsize=(16, 8))
+        ncols = int(number_of_channels / 2) + (number_of_channels % 2)
+        fig, axs = plt.subplots(2, ncols, figsize=(number_of_channels, ncols))
         axs = axs.ravel()
         # plt.show the image
         
