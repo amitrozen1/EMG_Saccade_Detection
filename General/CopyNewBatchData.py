@@ -1,6 +1,18 @@
-from General.HelperFunctions import GetSessions
 import os
 from tqdm import tqdm
+import re
+
+def isSession(s):
+    #return "202" in s
+    # Regular expression pattern to match the format ddmmyyyy_hhmm
+    pattern = r'\d{8}_\d{4}'
+
+    # Using fullmatch to ensure the entire string conforms to the pattern
+    return bool(re.fullmatch(pattern, s))
+
+def GetSessions(path):
+    return [ s for s in os.listdir(path) if isSession(s) ]
+
 
 def copy(source, dest):
     return os.system('copy "%s" "%s"' % (source, dest))
@@ -29,17 +41,12 @@ def handle_session(path_to_folder, dest_path, session):
             copy_file_that_ends_with(path_to_session_p, ext, copy_to_path)
 
 
-origin_path = r"Z:\Backup\Liron\DATA_FROM_EXPERIMENT\Batch_2"
-origin_path_2 = os.path.join(origin_path, "just_added")
-dest_path = r"C:\Liron\DataEmg\new_batch"
+origin_path = r"Y:\Backup\Liron\DATA_FROM_EXPERIMENT\Batch_1"
+dest_path = r"F:\For_Shoval\data"
 
-sessions = GetSessions(origin_path)
+os.makedirs(dest_path, exist_ok=True)
 
+sessions = GetSessions(origin_path)[19:]
 
-sessions_2 = GetSessions(origin_path_2)
-sessions.extend(sessions_2)
-existing_sessions = GetSessions(dest_path)
-
-for session in tqdm(sessions_2):
-    if session not in existing_sessions:
-        handle_session(origin_path_2, dest_path, session)
+for session in tqdm(sessions):
+    handle_session(origin_path, dest_path, session)
