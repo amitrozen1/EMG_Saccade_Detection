@@ -24,8 +24,8 @@ def is_original_ordered(first_story):
 
 # Load the data from the uploaded Excel file
 import os
-folder = r"C:\Liron\DataEmg\new_batch\results_2024"
-file_path = os.path.join(folder, "RMS_50_downsample_5_window_3_maxlag_3_db15_dwt_coorEachComp_with_actress_extra.csv")
+folder = r"C:\Liron\DataEmg\try\results_2024"
+file_path = os.path.join(folder, "RMS_50_downsample_5_window_3_maxlag_3_db15_dwt_coorEachComp_with_actress_0308.csv")
 
 data = pd.read_csv(file_path)
 
@@ -86,8 +86,8 @@ for index, (odd_row, even_row) in enumerate(zip(data_odd.itertuples(), data_even
             actress_df.at[i, "mean_" + muscle + "_2"] = getattr(even_row, f"mean_{muscle}_{p}")
         
         for col in corr_lag_measurments_n_headers("A_B"):
-            actress_df.at[index, col + "_1"] = getattr(odd_row, col)
-            actress_df.at[index, col + "_2"] = getattr(even_row, col)
+            actress_df.at[i, col + "_1"] = getattr(odd_row, col)
+            actress_df.at[i, col + "_2"] = getattr(even_row, col)
 
 
 AB_df.to_csv(add_before_extention(file_path, "_listening_AB_for_R"), index = False)

@@ -3,11 +3,9 @@ from scipy import signal
 import numpy as np
 from sklearn.decomposition import FastICA
 from sklearn.decomposition import PCA
-import cupy as xp
 from scipy.signal import butter, filtfilt
 from General.HelperFunctions import isMyAnnotation
 from scipy.signal import resample
-from picard import picard
 
 def butter_bandpass(lowcut, highcut, fs, order=5):
         nyq = 0.5 * fs
@@ -135,15 +133,15 @@ class EdfAnalyzer:
         sigbufs = np.array([f.readSignal(i) for i in range(0,n)])
         #Filter before ICA
         sigbufs = NotchFilterSignal(sigbufs, sampling_rate)
+        
+        lower_bound = 20.0
+        if ( hard_noise_removal ):
+            lower_bound = 50.0
 
-        if (doButter):
-            if ( not forEEG):
-                lower_bound = 20.0
-                if ( hard_noise_removal ):
-                    lower_bound = 50.0
-                sigbufs = filter_signal(sigbufs, sampling_rate) #butter_bandpass_filter(sigbufs, lower_bound, 400.0, sampling_rate)
-            else:
-                sigbufs = butter_bandpass_filter(sigbufs, 0.5, 8.0, sampling_rate) #todo - check if this is good for EEG
+        if forEEG:
+            sigbufs = butter_bandpass_filter(sigbufs, 0.5, 8.0, sampling_rate)
+        elif (doButter):
+            sigbufs = filter_signal(sigbufs, sampling_rate) #butter_bandpass_filter(sigbufs, lower_bound, 400.0, sampling_rate)
         
         return sigbufs, sampling_rate
     
@@ -276,6 +274,7 @@ class EdfAnalyzer:
     
     @staticmethod
     def ICA_picard(matrix, n_components=16, whiten=True):
+        from picard import picard
         if (whiten):
             whiten = 'unit-variance'
         K, W, X = picard(matrix, n_components=n_components,
@@ -286,6 +285,7 @@ class EdfAnalyzer:
     
     @staticmethod
     def PCA(matrix, n_components):
+        import cupy as xp
         transformer = PCA(n_components=n_components, random_state=0)
         x = xp.transpose(transformer.fit_transform(xp.transpose(matrix)))
         w = transformer.components_
