@@ -233,7 +233,7 @@ def blink_detection(single_component_signal, fs, one_blink=None):
 
 def main():
     # extracting the blinking component from the data
-    vector, chunks = extract_main()
+    vector, chunks, comp = extract_main()
     
     # rating the blinks in the data of the participant
     rated_blinks = blink_detection(vector, original_frequency)

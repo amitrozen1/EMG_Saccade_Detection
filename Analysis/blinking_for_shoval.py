@@ -69,7 +69,7 @@ def extract_blinking_component(data_path, session, p, downsample_window_in_ms=1,
     plt.show()
     #clearPlot()
 
-    return vector, chunks
+    return vector, chunks, comp
 
 # not in use for now
 # def extract_blink_from_vector(vector):
@@ -100,7 +100,7 @@ def extract_main():
     print(sessions)
     session = sessions[0]
 
-    vector, chunks = extract_blinking_component(data_path, session, A, 20, 100)
+    vector, chunks, comp = extract_blinking_component(data_path, session, A, 20, 100)
     # vector_mean = np.mean(vector)
     # for key in chunks.keys():
     #     chunk  =  chunks[key]
@@ -110,4 +110,4 @@ def extract_main():
     #     plt.show()
     #     clearPlot()
 
-    return vector, chunks
+    return vector, chunks, comp
