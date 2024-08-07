@@ -1,7 +1,6 @@
 import os
 from datetime import datetime
 import gc
-import cupy as xp
 import json
 import numpy as np
 from scipy.signal import find_peaks
@@ -43,6 +42,7 @@ def isMyAnnotation(annotation):
     return False
 
 def cleanSpace():
+    import cupy as xp
     gc.collect()
     xp.get_default_memory_pool().free_all_blocks()
 

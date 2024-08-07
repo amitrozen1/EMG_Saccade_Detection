@@ -4,10 +4,11 @@ from Analysis.blink_correlation import *
 from Analysis.mark_blinks import *
 from General.init import *
 from Analysis.blink_t_test import *
+from General.PlotFunctions import clearPlot
 
 import pickle as pkl
 
-def extract_blinks_from_chunck(chunks, blink_component, participant_blink, A, height):
+def extract_blinks_from_chunck(chunks, blink_component, participant_blink, particiapant, height, hz=4000):
     """
     Extracts the blinks from a chunk - from all 8 periods of 'reading'
     chunk - a dictionary with the chunk's data (start time, end time, data)
@@ -23,7 +24,10 @@ def extract_blinks_from_chunck(chunks, blink_component, participant_blink, A, he
             start_time = chunks[key].Start.Time
             end_time = chunks[key].End.Time 
             data = blink_component[int(start_time):int(end_time)]
-            blink_spike_train, height1 = blink_peaks_detect(participant_blink_filter, data, height, Flag)
+            if Flag:
+                blink_spike_train, height1 = blink_peaks_detect(participant_blink_filter, data, height, Flag, hz)
+            else:
+                blink_spike_train, height1 = blink_peaks_detect(participant_blink_filter, data, height1, Flag, hz)
             blink_in_chunks[key] = blink_spike_train
             Flag = False
 
@@ -128,13 +132,21 @@ def save_blink_as_a_graph(blink, file_name, A_or_B=None):
     ax.plot(blink)
     save_graphs_to_file(fig, file_name)
 
+
+def get_sessions_blinks(runner):
+    sessions = GetSessions(data_path)
+    if runner == "Liron":
+        return sessions[15:]
+    return sessions[:15]
+
+
 def run_over_all_sessions(data_path, PLV=True, rate_based=True):
     """
     Runs over all the sessions in the data and extracts the blinks of the participants
     for each session calculates the correlation between the blinks of the participants
     saves the data (blinks and vectors) and different correlation graphs (plv and rate based) to files under the folder 'blinkingGraphsAndData'
     """
-    sessions = GetSessions(data_path)[0:1]
+    sessions = get_sessions_blinks("Shoval")
     heightA = 0.25
     heightB = 0.25
     for session in sessions:
@@ -142,8 +154,8 @@ def run_over_all_sessions(data_path, PLV=True, rate_based=True):
         save_blink_as_a_graph(one_blink_A, 'one_blink_A_session_' + session + '.png', 'A')
         save_blink_as_a_graph(one_blink_B, 'one_blink_B_session_' + session + '.png', 'B')
         
-        blinks_in_chunks_A, heightA = extract_blinks_from_chunck(chunksA, vectorA, one_blink_A, 'A', heightA)
-        blinks_in_chunks_B, heightB = extract_blinks_from_chunck(chunksB, vectorB, one_blink_B, 'B', heightB)
+        blinks_in_chunks_A, heightA = extract_blinks_from_chunck(chunksA, vectorA, one_blink_A, 'A', heightA, 50)
+        blinks_in_chunks_B, heightB = extract_blinks_from_chunck(chunksB, vectorB, one_blink_B, 'B', heightB, 50)
         save_data_to_file({'vectorA': vectorA, 'vectorB': vectorB, 'blinks_in_chunks_A': blinks_in_chunks_A, 'blinks_in_chunks_B': blinks_in_chunks_B, 'one_blink_A': one_blink_A, 'one_blink_B': one_blink_B, 'height_A': heightA, 'height_B': heightB, 'comp_A': compA, 'comp_B': compB}, 'data_session_' + session + '.pkl')
 
         if PLV:
@@ -158,6 +170,7 @@ def run_over_all_sessions(data_path, PLV=True, rate_based=True):
 
             save_data_to_file({'plv_scores': plv_scores}, 'plv_scores_session_' + session + '.pkl')
             save_graphs_to_file(plot_plv_scores(plv_scores, session), 'plv_' + session + '.png')
+            clearPlot()
             
         if rate_based:
             rated_blinks_scores = []
@@ -173,6 +186,7 @@ def run_over_all_sessions(data_path, PLV=True, rate_based=True):
         
             save_data_to_file({'rated_blinks_scores': rated_blinks_scores}, 'rated_blinks_session_' + session + '.pkl')
             save_graphs_to_file(plot_rated_blinks_scores(rated_blinks_scores, session), 'rated_blinks_' + session + '.png')
+            clearPlot()
 
 def read_data_from_file(session, plv_score=False, rated_blinks=False):
     """
@@ -245,7 +259,7 @@ def main_all_sessions(data_path, PLV=True, rate_based=True):
     
     # once (at the beginning)
     # don't forget to comment out the line below after the first run
-    run_over_all_sessions(data_path, PLV, rate_based) 
+    run_over_all_sessions(data_path, PLV, rate_based)
 
     # only after 'run_over_all_sessions' was executed, don't forget to comment out the line above
     sessions = GetSessions(data_path)
@@ -387,4 +401,4 @@ def main_1():
 
         save_data_to_file({'plv_scores': plv_scores}, 'plv_scores_session_' + session + '.pkl')
         save_graphs_to_file(plot_plv_scores(plv_scores, session), 'plv_' + session + '.png')
-            
+        clearPlot()

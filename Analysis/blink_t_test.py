@@ -3,6 +3,35 @@ import numpy as np
 from Analysis.blink_correlation import *
 from General.init import *
 
+def t_score_test(sync_group, non_sync_group):
+    """
+    gets as input two groups, one group is synchronized and the other is not
+    sync_group - a list of the PLV or rate_based scores of the synchronized sessions
+    non_sync_group - a list of the PLV or rate_based (same as the synced group) scores of the non-synchronized sessions
+    returns the t-score of the two groups
+    """
+    
+    # In case the groups are not of the same size, uses the smaller size
+    if len(sync_group) > len(non_sync_group):
+        sync_group = sync_group[:len(non_sync_group)]
+    elif len(sync_group) < len(non_sync_group):
+        non_sync_group = non_sync_group[:len(sync_group)]   
+
+    sync_group = np.array(sync_group)
+    non_sync_group = np.array(non_sync_group)
+
+    sync_group = sync_group[~np.isnan(sync_group)]
+    non_sync_group = non_sync_group[~np.isnan(non_sync_group)]
+
+    if np.var(sync_group) == 0 or np.var(non_sync_group) == 0:
+        raise ValueError("The variance of one of the groups is zero")
+
+    t_score, p_value = ttest_ind(sync_group, non_sync_group, alternative="greater")
+    return t_score
+
+
+################################# deprecated #######################################
+
 def calculate_accuracy_rate(plv_scores, rate_based_scores, actual_sync, threshold=0.7):
     """
     Calculates whivh of the two methods is more accurate in predicting synchronization - PLV or rate-based 
@@ -33,31 +62,6 @@ def calculate_accuracy_rate(plv_scores, rate_based_scores, actual_sync, threshol
     
     return t_score_plv, t_score_rate_based
 
-def t_score_test(sync_group, non_sync_group):
-    """
-    gets as input two groups, one group is synchronized and the other is not
-    sync_group - a list of the PLV or rate_based scores of the synchronized sessions
-    non_sync_group - a list of the PLV or rate_based (same as the synced group) scores of the non-synchronized sessions
-    returns the t-score of the two groups
-    """
-    
-    # In case the groups are not of the same size, uses the smaller size
-    if len(sync_group) > len(non_sync_group):
-        sync_group = sync_group[:len(non_sync_group)]
-    elif len(sync_group) < len(non_sync_group):
-        non_sync_group = non_sync_group[:len(sync_group)]   
-
-    sync_group = np.array(sync_group)
-    non_sync_group = np.array(non_sync_group)
-
-    sync_group = sync_group[~np.isnan(sync_group)]
-    non_sync_group = non_sync_group[~np.isnan(non_sync_group)]
-
-    if np.var(sync_group) == 0 or np.var(non_sync_group) == 0:
-        raise ValueError("The variance of one of the groups is zero")
-
-    t_score, p_value = ttest_ind(sync_group, non_sync_group)
-    return t_score       
 
 def PLV_vs_rate_based_ttest(plv_scores, rate_based_scores, plv_scores_asynchronized, rate_based_scores_asynchronized):
     """
