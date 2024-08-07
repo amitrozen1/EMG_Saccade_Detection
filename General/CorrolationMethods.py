@@ -1,14 +1,7 @@
 import numpy as np
-from scipy.signal import find_peaks, peak_prominences, peak_widths, hilbert
-from General.HelperFunctions import GetSessions, cleanSpace, RemoveRowFromMatrix
-from EDF.ComponentValidator import GetNoiseComponentsBySort
+from scipy.signal import find_peaks, hilbert
 import numpy as np
-from EDF.SharedIcaRunner import LoadComponents
 import matplotlib.pyplot as plt
-from General import HtmlTablePlot
-from General.HelperFunctions import reshape_num_channels
-import seaborn as sns
-from dtw import dtw, accelerated_dtw
 from dtaidistance import dtw, dtw_ndim
 from dtaidistance.dtw_ndim import warping_paths
 from dtaidistance.dtw import best_path
@@ -468,6 +461,7 @@ def phase_synchrony(y1,y2):
     return np.mean(phase_synchronies)
 
 def min_dtw(d1,d2):
+    from dtw import accelerated_dtw
     d, cost_matrix, acc_cost_matrix, path = accelerated_dtw(np.transpose(d1),np.transpose(d2), dist="sqeuclidean")
     return d/(d1.shape[0]*d1.shape[1]), path
     
