@@ -35,9 +35,9 @@ def extract_blink_and_data_from_participants(data_path, session):
     returns one blink of each participant, the blink component and the chuncks
     """
 
-    vectorA, chunksA = extract_blinking_component(data_path, session, A, 20, 100)
+    vectorA, chunksA, compA = extract_blinking_component(data_path, session, A, 20, 100)
     print("finished A")
-    vectorB, chunksB = extract_blinking_component(data_path, session, B, 20, 100)
+    vectorB, chunksB, compB = extract_blinking_component(data_path, session, B, 20, 100)
     print("finished B")
 
     s1 = chunksA["blink__0"].Start.Time
@@ -51,7 +51,7 @@ def extract_blink_and_data_from_participants(data_path, session):
     one_blink_A = mark_blink_out_of_signal(signal_A_for_identify)
     one_blink_B = mark_blink_out_of_signal(signal_B_for_identify)
 
-    return one_blink_A, one_blink_B, vectorA, vectorB, chunksA, chunksB
+    return one_blink_A, one_blink_B, vectorA, vectorB, chunksA, chunksB, compA. compB
 
 def extract_blinks_2_participants_main(data_path):
     """
@@ -60,7 +60,7 @@ def extract_blinks_2_participants_main(data_path):
     """
     sessions = GetSessions(data_path)
     session = sessions[0]
-    one_blink_A, one_blink_B, vectorA, vectorB, chunksA, chunksB = extract_blink_and_data_from_participants(data_path, session)
+    one_blink_A, one_blink_B, vectorA, vectorB, chunksA, chunksB, compA, compB = extract_blink_and_data_from_participants(data_path, session)
     blinks_in_chunks_A = extract_blinks_from_chunck(chunksA, vectorA, one_blink_A)
     blinks_in_chunks_B = extract_blinks_from_chunck(chunksB, vectorB, one_blink_B)
     
@@ -138,13 +138,13 @@ def run_over_all_sessions(data_path, PLV=True, rate_based=True):
     heightA = 0.25
     heightB = 0.25
     for session in sessions:
-        one_blink_A, one_blink_B, vectorA, vectorB, chunksA, chunksB = extract_blink_and_data_from_participants(data_path, session)
+        one_blink_A, one_blink_B, vectorA, vectorB, chunksA, chunksB, compA, compB = extract_blink_and_data_from_participants(data_path, session)
         save_blink_as_a_graph(one_blink_A, 'one_blink_A_session_' + session + '.png', 'A')
         save_blink_as_a_graph(one_blink_B, 'one_blink_B_session_' + session + '.png', 'B')
         
         blinks_in_chunks_A, heightA = extract_blinks_from_chunck(chunksA, vectorA, one_blink_A, 'A', heightA)
         blinks_in_chunks_B, heightB = extract_blinks_from_chunck(chunksB, vectorB, one_blink_B, 'B', heightB)
-        save_data_to_file({'vectorA': vectorA, 'vectorB': vectorB, 'blinks_in_chunks_A': blinks_in_chunks_A, 'blinks_in_chunks_B': blinks_in_chunks_B}, 'data_session_' + session + '.pkl')
+        save_data_to_file({'vectorA': vectorA, 'vectorB': vectorB, 'blinks_in_chunks_A': blinks_in_chunks_A, 'blinks_in_chunks_B': blinks_in_chunks_B, 'one_blink_A': one_blink_A, 'one_blink_B': one_blink_B, 'height_A': heightA, 'height_B': heightB, 'comp_A': compA, 'comp_B': compB}, 'data_session_' + session + '.pkl')
 
         if PLV:
             plv_scores = []
