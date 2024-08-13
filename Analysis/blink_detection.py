@@ -72,7 +72,7 @@ def convert_patten_to_spike_train(sig, filter, fs, height=0.3, Flag=False):
     :return: a spike train of blinks
     """
     # reduce moving mean from the signal in the length of filter
-    # sig = sig[0:-len(filter)+1] - np.convolve(sig, np.ones(len(filter)) / len(filter), mode='valid')
+    #sig = sig[0:-len(filter)+1] - np.convolve(sig, np.ones(len(filter)) / len(filter), mode='valid')
     
 
     # #ploting the signal before normalization
@@ -112,7 +112,7 @@ def convert_patten_to_spike_train(sig, filter, fs, height=0.3, Flag=False):
     if Flag == True:
         height = float(input("Enter the height of the peaks: "))
     
-    peaks = signal.find_peaks(corr, height=height, distance=20)
+    peaks = signal.find_peaks(corr, height=height, distance=60)
 
     spike_train = np.zeros_like(t)
     spike_train[peaks[0]] = 1
