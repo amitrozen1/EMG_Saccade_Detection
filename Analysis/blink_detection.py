@@ -3,14 +3,13 @@
 
 from Analysis.blinking_for_shoval import *
 
-def blink_peaks_detect(one_blink, blinking_component_signal, height, Flag):
+def blink_peaks_detect(one_blink, blinking_component_signal, height, Flag, hz=4000):
     win1 = one_blink
-    spike_train, height1 = convert_patten_to_spike_train(blinking_component_signal, win1, 4000, height, Flag)
+    # spike_train, height1 = convert_patten_to_spike_train(blinking_component_signal, win1, hz, height, Flag)
     # to do: instead of getting one blink, find a blink (using extract_blink_from_vector) 
     # blink = extract_blink_from_vector(blinking_component_signal)
-    
-    win1 = create_filter(one_blink, 4)
-    spike_train = convert_patten_to_spike_train(blinking_component_signal, win1, 4000)
+
+    spike_train, height1 = convert_patten_to_spike_train(blinking_component_signal, win1, hz, height, Flag)
 
 
     binary_blinks_list = []
@@ -73,7 +72,7 @@ def convert_patten_to_spike_train(sig, filter, fs, height=0.3, Flag=False):
     :return: a spike train of blinks
     """
     # reduce moving mean from the signal in the length of filter
-    # sig = sig[0:-len(filter)+1] - np.convolve(sig, np.ones(len(filter)) / len(filter), mode='valid')
+    #sig = sig[0:-len(filter)+1] - np.convolve(sig, np.ones(len(filter)) / len(filter), mode='valid')
     
 
     # #ploting the signal before normalization
@@ -112,7 +111,8 @@ def convert_patten_to_spike_train(sig, filter, fs, height=0.3, Flag=False):
     # asks the user to input the height of the peaks
     if Flag == True:
         height = float(input("Enter the height of the peaks: "))
-    peaks = signal.find_peaks(corr, height=height, distance=20)
+    
+    peaks = signal.find_peaks(corr, height=height, distance=60)
 
     spike_train = np.zeros_like(t)
     spike_train[peaks[0]] = 1

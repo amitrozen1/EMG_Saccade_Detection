@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 from General.HelperFunctions import GetSessions
 from ComponentAnalysis.ComponentExtractor import GetSideEyeComponent
 from General.PlotFunctions import savePlot, clearPlot, plotChunkData
+from Hilas_component_classification.classifying_ica_components import wavelet_denoising, whiten, center
 # there are some general parameters in General.init
 
 def remove_first_values_from_all_array_values(arr):
@@ -34,21 +35,44 @@ def extract_blinking_vector(data_path, session, p,  electrode_number, downsample
     
     return Y[electrode_number], EdfAnalyzer.getCallibrationTicks(chunks, "blink"), chunks
 
+
+def get_component_folder(data_path, session, p):
+    p = 'A' if p == A else 'B'
+    return os.path.join(data_path, session, 'DWT_hila_db15_eeg', p)
+
+def get_w_path(data_path, session, p):
+    return os.path.join(get_component_folder(data_path, session, p), 'w.npy')
+
+def open_w_if_exists(data_path, session, p):
+    w_path = get_w_path(data_path, session, p)
+    if os.path.exists(w_path):
+        return np.load(w_path)
+    return None
+
 def extract_blinking_component(data_path, session, p, downsample_window_in_ms=1, rms_size_ms=100):
     path_and_corrections = getPathsFromSessionFolder(os.path.join(data_path, session))
     Y, chunks, freq = EdfAnalyzer.Read(path_and_corrections[p][0], path_and_corrections[p][1], downsample_window_in_ms, forEEG=True)
-    
+    Y = wavelet_denoising(Y, freq, 'db15')
+    Y, _ = center(Y)
+    Y = whiten(Y)
     Y = zscore(Y, axis=1)
-    w, Y = EdfAnalyzer.ICA(Y, 16)
+    
+    w = open_w_if_exists(data_path, session, p)
+    if w is None:
+        w, independentComponents = EdfAnalyzer.ICA(Y, 16, whiten=False)
+    else:
+        independentComponents = np.matmul(w, Y)
 
-    Y = EdfAnalyzer.window_rms(Y, rms_size_ms, freq)
+    independentComponents = EdfAnalyzer.window_rms(independentComponents, rms_size_ms, freq)
     #downsample:
     if (downsample_window_in_ms != 1):
-        Y = EdfAnalyzer.resample_by_averaging_every_n(Y, downsample_window_in_ms, freq)
+        hz = int(1000/downsample_window_in_ms)
+        #todo - check if it fits Shoval's algorithm.
+        independentComponents = signal.resample(independentComponents, int(independentComponents.shape[1] / freq * hz), axis=1)
 
     #choosing best component for bliking:
     blinks_timing = EdfAnalyzer.getCallibrationTicks(chunks, "blink")
-    vector_b = Y[:, blinks_timing[0]:blinks_timing[-1]]
+    vector_b = independentComponents[:, blinks_timing[0]:blinks_timing[-1]]
     blinks_timing_corrected = remove_first_values_from_all_array_values(blinks_timing)
     print("blinks timing: ", blinks_timing)
     print("blinks timing corrected: ", blinks_timing_corrected)
@@ -57,7 +81,7 @@ def extract_blinking_component(data_path, session, p, downsample_window_in_ms=1,
     clearPlot()
 
     comp = int(input("Choose the best component for blinking, zero based: ")) 
-    vector = Y[comp]
+    vector = independentComponents[comp]
     
     #Sanity - check only this vector on blinking:
     plt.plot(vector[blinks_timing[0]:blinks_timing[-1]])
