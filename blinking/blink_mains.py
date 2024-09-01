@@ -1,9 +1,9 @@
-from Analysis.blinking_for_shoval import *
-from Analysis.blink_detection import *
-from Analysis.blink_correlation import *
-from Analysis.mark_blinks import *
+from blinking.blinking_for_shoval import *
+from blinking.blink_detection import *
+from blinking.blink_correlation import *
+from blinking.mark_blinks import *
 from General.init import *
-from Analysis.blink_t_test import *
+from blinking.blink_t_test import *
 from General.PlotFunctions import clearPlot
 
 import pickle as pkl

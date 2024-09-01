@@ -1,5 +1,5 @@
-from Analysis.blinking_for_shoval import *
-from Analysis.blink_detection import *
+from blinking.blinking_for_shoval import *
+from blinking.blink_detection import *
 
 def blink_correlation_rate_based(rated_blinks_participant1, rated_blinks_participant2, delay=50, rate_based=True):
     """

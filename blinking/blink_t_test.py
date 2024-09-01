@@ -1,6 +1,6 @@
 from scipy.stats import ttest_ind
 import numpy as np
-from Analysis.blink_correlation import *
+from blinking.blink_correlation import *
 from General.init import *
 
 def t_score_test(sync_group, non_sync_group):

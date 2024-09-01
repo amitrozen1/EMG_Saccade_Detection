@@ -1,7 +1,7 @@
 # Detection of blinks in the data
 # Rating the blinks in the data
 
-from Analysis.blinking_for_shoval import *
+from blinking.blinking_for_shoval import *
 
 def blink_peaks_detect(one_blink, blinking_component_signal, height, Flag, hz=4000):
     win1 = one_blink
