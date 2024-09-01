@@ -101,7 +101,9 @@ def plotHeatMapsForComponents(components, title=""):
 
 def clearPlot():
     plt.cla()
-    #plt.clf()
+    plt.clf()
+    #close figure window:
+    plt.close()
 
 import os
 

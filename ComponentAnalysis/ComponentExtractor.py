@@ -95,7 +95,7 @@ def GetLipCornerDownPuller(w, removed_electrodes_zero_based):
     return a
 
 
-def get_special_component_indexes(w, list_of_faulty_channels):
+def get_special_component_indexes(w, list_of_faulty_channels=[]):
     #should replace with HILA's code.
     special_comps_getters = [GetNoseComponent, GetSideEyeComponent, GetZygomaticusComponent, GetCorrugatorComponent]
     return [getter(w, list_of_faulty_channels) for getter in special_comps_getters]
