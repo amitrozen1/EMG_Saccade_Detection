@@ -146,7 +146,7 @@ def get_ok_sessions():
     return sessions
 
 def run_emg_analysis(main_corrolation_func, rms_size_ms, downsampleWindowInMs, windowForCorrInMs, numOfPixelsForXCorrStep, headers, csv_out_path, with_actress=False, hard_noise_remove_for_actress = False):
-    more_comps = ["25122023_1000", "25122023_1200", "25122023_1400", "21122023_1230", "06122023_1000"]
+    more_comps = ["25122023_1000", "25122023_1400", "21122023_1230"] #["25122023_1000", "25122023_1200", "25122023_1400", "21122023_1230", "06122023_1000"]
     sessions_list = more_comps #get_ok_sessions() #GetSessions(data_path)
     #get_ok_sessions()
 

@@ -168,13 +168,19 @@ def default_heatmap_with_channels_removal(W, electrodes_to_remove, save_differen
             plt.show()
     else:
         create_folder_if_not_exists(save_at)
-        for i in range(number_of_channels):
-            if ( should_print_only_selected and i not in selected):
-                continue
+        # for i in range(number_of_channels):
+        #     if ( should_print_only_selected and i not in selected):
+        #         continue
+        loop_arr = range(number_of_channels)
+        if should_print_only_selected:
+            loop_arr = selected
+        header_count=0
+        for i in loop_arr:
             filename = f"IC_{i + 1}-e_{elecs[i]}{saved_images_extention}"
             if ( should_print_only_selected):
                 # i index inside selected
-                filename = f"{extra_headers[selected.index(i)]}{saved_images_extention}"
+                filename = f"{extra_headers[header_count]}{saved_images_extention}" #header_count was selected.index(i)
+                header_count += 1
             plt.figure(dpi = 400)
             #hide x and y axis:
             plt.axis('off')
@@ -203,6 +209,8 @@ def get_heatmap(image_path, number_of_channels, W, reverse_order=False, save_dif
     else:
         image, height, width = image_load(image_path)
         get_location()
+        print(x_coor)
+        print(y_coor)
 
     # calculations for the heatmap
     inverse = np.absolute(inv(W))

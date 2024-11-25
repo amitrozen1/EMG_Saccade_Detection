@@ -6,7 +6,7 @@ from General.init import *
 from tqdm import tqdm
 from General.HelperFunctions import getPathsFromSessionFolder, remove_rows_from_matrix
 from EDF.EdfAnalyzer import EdfAnalyzer
-from ComponentAnalysis.ComponentExtractor import GetCorrugatorComponent, GetNoseComponent, GetSideEyeComponent, GetZygomaticusComponent
+from ComponentAnalysis.ComponentExtractor import GetCorrugatorComponent, GetNoseComponent, GetSideEyeComponent, GetZygomaticusComponent, GetComponentByElecrodesNumber, GetLipCornerDownPuller
 from General.HelperFunctions import get_review_data
 from EDF.PlotHeatmap import default_heatmap_with_channels_removal
 from General.PlotFunctions import clearPlot, plotChunkData
@@ -378,3 +378,57 @@ def plot_selected_components():
                                ticks, get_special_component_names(), num_components = 4, show=True)
             
 
+
+def load_extended_comps(data_path, session, p, w):
+    chosen_comps = load_special_components_if_exists(data_path, session, p, True)
+    if (chosen_comps is None):
+        return None
+    chosen_comps += [GetComponentByElecrodesNumber(w, [], [2])]
+    chosen_comps += [GetComponentByElecrodesNumber(w, [], [5])]
+    chosen_comps +=  [GetLipCornerDownPuller(w, [])]
+
+    return chosen_comps
+
+def get_extended_comps_names():
+    return get_special_component_names() + ["neg_comp_2", "pos_comp_5", "LipCornerDownPuller"]
+
+def check_reps(chosen_comps):
+    for i in range(len(chosen_comps)):
+        #create new list without the current component:
+        if ( i==0):
+            new_list = chosen_comps[1:]
+        else:
+            new_list = chosen_comps[:i] + chosen_comps[i+1:]
+        if chosen_comps[i] in new_list:
+            return "Yes"
+    return "No"
+
+def go_over_w_and_create_new_htmls():
+    session_list = GetSessions(data_path)
+    html_dict = initHtmlDictionary(["sesssion", "participant", "reps"] + get_extended_comps_names() +["whole_heatmap"])
+    for session in tqdm(session_list):
+        for p in [A,B]:
+            folder = get_component_analysis_folder(data_path, session, p, no_review = True)
+            w = open_w_if_exisis(session, p, no_review = True)
+            if (w is not None):
+                chosen_comps = load_extended_comps(data_path, session, p, w)
+                print(f"{session} {particiapnt_to_char(p)} {chosen_comps}")
+                if (chosen_comps is not None):
+                    default_heatmap_with_channels_removal(w, [], selected=chosen_comps, 
+                                            save_at=folder,
+                                            save_different_figures=True,
+                                            extra_headers=get_extended_comps_names())
+                else:
+                    print(f"no chosen components for {session} {particiapnt_to_char(p)}")
+            else:
+                print(f"no w for {session} {particiapnt_to_char(p)}")
+            
+            #for html:
+            image_paths = [os.path.join(folder, f + saved_images_extention) for f in get_extended_comps_names()]
+            image_cols = [toImageHtmlColFromPath(f) for f in image_paths]
+            whole_heatmap_path = os.path.join(folder, "whole_heatmap" + saved_images_extention)
+            image_cols += [toImageHtmlColFromPath(whole_heatmap_path)]
+            addRow(html_dict, [toTextHtmlCol(session), toTextHtmlCol(particiapnt_to_char(p)), toTextHtmlCol(check_reps(chosen_comps))] +
+                    image_cols)
+    
+    SaveHtmlFile(html_dict, os.path.join(data_path, "extended_comps_batch2.html"))
