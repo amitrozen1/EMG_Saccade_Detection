@@ -8,14 +8,14 @@ from PsychData.LoadChoicesJson import loadChoiceFromSession
 from tqdm import tqdm
 from General.HelperFunctions import getPathsFromSessionFolder, remove_rows_from_matrix
 from EDF.EdfAnalyzer import EdfAnalyzer
-from General.HelperFunctions import get_review_data
-from ComponentAnalysis.ComponentExtractor import open_w_if_exisis, open_whiten_if_exisis, load_special_components_if_exists, get_special_component_indexes, GetLipCornerDownPuller, GetComponentByElecrodesNumber
+from ComponentAnalysis.ComponentExtractor import open_w_if_exisis, open_whiten_if_exisis, load_special_components_if_exists, get_special_component_indexes, GetLipCornerDownPuller, GetComponentByElecrodesNumber, convert_comp_number_to_electrode_number
 from analysis_decisions_py.cleaning_signal import remove_emg_artifacts
 from analysis_decisions_py.original_actress_readings import export_actress_chunked_data, export_actress_chunked_data_with_dwt
 from scipy import signal
-from ComponentAnalysis.ReviewComponents_batch2 import GetSessionsBatch2, open_w_if_exists_batch2, get_bad_electrode, get_chosen_comps, is_no_review_folder
+from ComponentAnalysis.ReviewComponents_batch2 import GetSessionsBatch2, open_w_if_exists_batch2, get_bad_electrode, get_chosen_comps
 from PsychData.Experiment_CSV import read_experiment_csv_batch2
 from Hilas_component_classification.classifying_ica_components import wavelet_denoising, whiten, center
+from ComponentAnalysis.ComponentExtractor import get_special_component_names
 
 def run_emg_analysis_batch2(main_corrolation_func, rms_size_ms, downsampleWindowInMs, windowForCorrInMs, numOfPixelsForXCorrStep, headers, csv_out_path, with_actress=False, hard_noise_remove_for_actress = False):
     sessions = GetSessionsBatch2()
@@ -108,7 +108,7 @@ def get_neg_pos_comps(independentComponents, chunks, n=3):
 
     return [neg_comp, pos_comp]
     
-def get_neg_pos_indexes(independentComponents, chunks):
+def get_neg_pos_indexes(independentComponents, chunks, n=1, return_indicator=False):
     key = "smile__2"
     smile_s = int(chunks[key].Start.Time)
     smile_e = int(chunks[key].End.Time)
@@ -116,13 +116,35 @@ def get_neg_pos_indexes(independentComponents, chunks):
     angry_s = int(chunks[key].Start.Time)
     angry_e = int(chunks[key].End.Time)
     
+    independentComponents = zscore(independentComponents, axis=1)
+
     smile_data = independentComponents[:, smile_s:smile_e]
     angry_data = independentComponents[:, angry_s:angry_e]
 
-    neg_comp = np.argmax(np.mean(angry_data, axis=1) - np.mean(smile_data, axis=1))
-    pos_comp = np.argmax(np.mean(smile_data, axis=1) - np.mean(angry_data, axis=1))
+    mean_neg = np.mean(angry_data, axis=1)
+    mean_pos = np.mean(smile_data, axis=1)
 
-    return [neg_comp, pos_comp]
+    mean_neg_norm = mean_neg / np.mean(mean_neg)
+    mean_pos_norm = mean_pos / np.mean(mean_pos)
+
+    neg_compare = mean_neg_norm - mean_pos_norm #np.mean(angry_data, axis=1) - np.mean(smile_data, axis=1)
+    pos_compare = mean_pos_norm - mean_neg_norm #np.mean(smile_data, axis=1) - np.mean(angry_data, axis=1)
+
+    neg_indexes = np.argsort(neg_compare)[-n:]
+    pos_indexes = np.argsort(pos_compare)[-n:]
+
+    #for each comp, choose if value is bigger than zero, if not, delete from list:
+    neg_comps = [comp for comp in neg_indexes if neg_compare[comp] > 0]
+    pos_comps = [comp for comp in pos_indexes if pos_compare[comp] > 0]
+
+    if n == 1:
+        return [neg_comps[0], pos_comps[0]]
+
+    if return_indicator:
+        return neg_comps, pos_comps, pos_compare
+
+    return neg_comps, pos_comps
+
 
 def get_ok_sessions():
     if current_batch == 1:
@@ -144,6 +166,90 @@ def get_ok_sessions():
             sessions.remove("09052023_1630")
 
     return sessions
+
+def convert_comp_list_to_unique_electore_list(comp_list, w):
+    l = []
+    for comp in comp_list:
+        electrode = convert_comp_number_to_electrode_number(comp, w)
+        if electrode not in l:
+            l.append(electrode)
+    return l
+
+def reorganize_indicator(indicator, w):
+    reordered_indicator = [0]*16
+    new_indices = [convert_comp_number_to_electrode_number(i, w) - 1 for i in range(len(indicator))]
+    for i in range(len(indicator)):
+        if reordered_indicator[new_indices[i]] == 0:
+            reordered_indicator[new_indices[i]] = indicator[i]
+        else:
+            reordered_indicator[new_indices[i]] = (reordered_indicator[new_indices[i]] +  indicator[i]) / 2
+    return reordered_indicator
+
+def compute_neg_pos_components_histogram_csv(rms_size_ms= 50, downsampleWindowInMs = 5):
+    sessions_list = get_ok_sessions()
+    all_results = []
+    all_indicators = []
+    saved_comps_indicators = []
+    for session in tqdm(sessions_list):
+        try:
+            #print(session)
+            path_and_corrections = getPathsFromSessionFolder(os.path.join(data_path, session))
+            for p in [A,B]:
+                Y, chunks, freq = EdfAnalyzer.Read(path_and_corrections[p][0], path_and_corrections[p][1], downsampleWindowInMs)
+
+                Y = wavelet_denoising(Y, freq, 'db15')
+                Y, _ = center(Y)
+                
+                whiten_mat = open_whiten_if_exisis(session, p, dwt=True)
+                if (whiten_mat is None):
+                    Y = whiten(Y)
+                else:
+                    Y = np.dot(whiten_mat, Y)
+
+                w = open_w_if_exisis(session, p, dwt=True)
+                
+                if ( w is None):
+                    w, independentComponents = EdfAnalyzer.ICA(Y, 16, whiten=False)
+                else:
+                    independentComponents = np.matmul(w,Y)
+
+                independentComponents = EdfAnalyzer.window_rms(independentComponents, rms_size_ms, freq)
+                hz = int(1000/downsampleWindowInMs)
+                independentComponents = signal.resample(independentComponents, int(independentComponents.shape[1] / freq * hz), axis=1)
+
+                neg_comps, pos_comps, indicator = get_neg_pos_indexes(independentComponents, chunks, 4, return_indicator=True)
+                neg_elecs = convert_comp_list_to_unique_electore_list(neg_comps, w)
+                pos_elecs = convert_comp_list_to_unique_electore_list(pos_comps, w)
+                org_indicator = reorganize_indicator(indicator, w)
+
+                special_comps_index = load_special_components_if_exists(data_path, session, p, dwt=True)
+                if (special_comps_index is None):
+                    special_comps_index = get_special_component_indexes(w, [])
+                
+                #special_comps_index += get_neg_pos_indexes(independentComponents, chunks)
+                special_comps_index += [GetComponentByElecrodesNumber(w, [], [2])]
+                special_comps_index += [GetComponentByElecrodesNumber(w, [], [5])]
+                special_comps_index +=  [GetLipCornerDownPuller(w, [])]
+
+                row = [session, p] + [neg_elecs] + [pos_elecs]
+                all_results.append(row)
+                all_indicators.append(org_indicator)
+                saved_comps_indicators.append(indicator[special_comps_index])
+        except:
+            print("error in session " + session)
+
+    df = pd.DataFrame(all_results)
+    df.columns = ["session", "participant", "neg_comps", "pos_comps"]
+    df.to_csv(f"neg_pos_comps_histogram_normmean_b{current_batch}.csv")
+
+    df = pd.DataFrame(all_indicators)
+    df.columns = ["e_" + str(i+1) for i in range(16)]
+    df.to_csv(f"neg_pos_comps_histogram_indicators_normmean_b{current_batch}.csv")
+
+    df = pd.DataFrame(saved_comps_indicators)
+    df.columns = get_special_component_names(True)
+    df.to_csv(f"neg_pos_comps_histogram_special_comps_normmean_b{current_batch}.csv")
+
 
 def run_emg_analysis(main_corrolation_func, rms_size_ms, downsampleWindowInMs, windowForCorrInMs, numOfPixelsForXCorrStep, headers, csv_out_path, with_actress=False, hard_noise_remove_for_actress = False):
     more_comps = ["25122023_1000", "25122023_1400", "21122023_1230"] #["25122023_1000", "25122023_1200", "25122023_1400", "21122023_1230", "06122023_1000"]

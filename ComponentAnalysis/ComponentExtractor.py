@@ -73,6 +73,11 @@ def GetComponentByElecrodesNumber(w, removed_electrodes_zero_based, electrodes_c
 
     return ic_loc
 
+def convert_comp_number_to_electrode_number(comp_number, w):
+    inverse = np.absolute(inv(w)) 
+    ic_channel_to_electrode_number = np.argmax(inverse, axis=0) + 1
+    return ic_channel_to_electrode_number[comp_number]
+
 def GetNoseComponent(w, removed_electrodes_zero_based):
     return GetComponentByElecrodesNumber(w, removed_electrodes_zero_based, [9, 8]) #only 9
 

@@ -195,18 +195,11 @@ def compute_single_corrolations(vectors, chunk_key, window_size_in_ms, maxium_la
     for i, s in enumerate(range(0, max_len - numOfPixelsForXCorrWindow , numOfPixelsForXCorrStep)): #not using jumps.
             e = s + numOfPixelsForXCorrWindow
             for comp in range(4):
+                #Listener then reader.
                 max_corr, max_ind = get_max_xcorr_pearson_1d(vectors[0][comp], vectors[1][comp], maxium_lag_in_ms,
-                                                              downsampleWindowInMs, s, e, chunk_key.split("_")[0])
+                                                              downsampleWindowInMs, s, e, "one-direction")
                 max_corrs[comp].append(max_corr)
     return [np.mean(comp) for comp in max_corrs]
-    # max_corrs = []
-    # for comp in range(4):
-    #     max_corr = windowed_lagged_cross_correlation(vectors[0][comp], vectors[1][comp],
-    #                                                 numOfPixelsForXCorrWindow,
-    #                                                 numOfPixelsForXCorrStep, 
-    #                                                 tMax,tInc)
-    #     max_corrs.append(max_corr)
-    # return max_corrs
     
 def compute_corrolations_for_dyad_from_vectors(vectors, dyad_index, dyad_type, chunk_key):
     for i, window_size in enumerate(window_sizes):
