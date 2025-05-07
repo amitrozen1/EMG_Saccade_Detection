@@ -116,29 +116,26 @@ def export_actress_chunked_data_with_dwt(downsampleWindowInMs=20, rms_size_ms=10
     f = pyedflib.EdfReader(edf_path)
     Y, freq = EdfAnalyzer.readEdf(f)
     chunks = read_annotations(f, freq, downsampleWindowInMs, correct_value)
-    elecs_to_remove = []
     #Y, chunks, freq = EdfAnalyzer.Read(edf_path, correct_value, downsample_window_in_ms=downsampleWindowInMs)
     chunks_as_dict = build_actress_chunks(chunks, downsampleWindowInMs)
-    Y = remove_rows_from_matrix(Y, elecs_to_remove)
     Y = wavelet_denoising(Y, freq, 'db15')
     Y, _ = center(Y)
-
     Y = whiten(Y)
 
     w = open_w_if_exisis(dwt=True)
     
     if ( w is None):
-        w, independentComponents = EdfAnalyzer.ICA(Y, 16 - len(elecs_to_remove), whiten=False)
+        w, independentComponents = EdfAnalyzer.ICA(Y, 16, whiten=False)
         save_w(w, dwt=True)
     else:
         independentComponents = np.matmul(w,Y)
 
     #change according to heatmap.
-    special_comps_index = [5, 15, 2, 14, 4, 10, 1] #[8,14,0,9]
+    #special_comps_index = [5, 15, 2, 14, 4, 10, 1] #[8,14,0,9]
     #get_special_component_indexes(w, elecs_to_remove)
     #get_heatmap(image_path, 16, w, electrodes_to_remove=elecs_to_remove)
 
-    independentComponents = independentComponents[special_comps_index, :]
+    #independentComponents = independentComponents[special_comps_index, :]
     independentComponents = EdfAnalyzer.window_rms(independentComponents, rms_size_ms, freq)
     hz = int(1000/downsampleWindowInMs)
     independentComponents = signal.resample(independentComponents, int(independentComponents.shape[1] / freq * hz), axis=1)
@@ -146,9 +143,9 @@ def export_actress_chunked_data_with_dwt(downsampleWindowInMs=20, rms_size_ms=10
     # special_max = np.max(independentComponents, axis=0)
     # independentComponents = np.vstack((independentComponents, special_max))
 
-    for key in chunks_as_dict:
-        chunk = chunks_as_dict[key]
-        chunks_as_dict[key].data = independentComponents[:, chunk.start:chunk.end]
+    # for key in chunks_as_dict:
+    #     chunk = chunks_as_dict[key]
+    #     chunks_as_dict[key].data = independentComponents[:, chunk.start:chunk.end]
     
     #     #plot the special components:
     # titles = get_special_component_names() + ["max"]
@@ -162,7 +159,8 @@ def export_actress_chunked_data_with_dwt(downsampleWindowInMs=20, rms_size_ms=10
     # plotChunkData(toPlot, "actrss", ticks, titles, num_components=5, show=True)
     
     
-    return chunks_as_dict
+    #return chunks_as_dict
+    return independentComponents, chunks_as_dict
 
 
 def export_actress_chunked_data(downsampleWindowInMs=20, rms_size_ms=100, hard_noise_removal = False):

@@ -146,9 +146,9 @@ def get_neg_pos_indexes(independentComponents, chunks, n=1, return_indicator=Fal
     return neg_comps, pos_comps
 
 
-def get_ok_sessions():
-    if current_batch == 1:
-        sessions =  GetSessions(data_path)
+def get_ok_sessions(action="listening"):
+    if get_current_batch() == 1:
+        sessions =  GetSessions(get_data_path())
         sessions.remove("20122022_1415")
     else:
         #return ["10052023_1430", "09052023_1215", "08052023_1430"]
@@ -156,13 +156,16 @@ def get_ok_sessions():
         extra = ["17052023_1430", "06122023_1000"]
         excluded_list += extra
         # can be improved "21122023_1500", "17052023_1430", "11122023_1400", "06122023_1000	"
-        sessions = GetSessions(data_path)
+        sessions = GetSessions(get_data_path())
         for session in excluded_list:
             if session in sessions:
                 sessions.remove(session)
 
+        if "reading" in action and "20042023_1015" in sessions:
+            sessions.remove("20042023_1015")
+
         # 09052023_1630 finished battery in A before time!!!
-        if "09052023_1630" in sessions:
+        if "listening" in action and "09052023_1630" in sessions:
             sessions.remove("09052023_1630")
 
     return sessions

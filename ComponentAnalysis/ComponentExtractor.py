@@ -112,30 +112,30 @@ def get_special_component_names(withValenceComps = False):
     base += ["LipCornerDownPuller"]
     return base
 
-def get_component_analysis_folder(data_path, session, p, dwt=False):
+def get_component_analysis_folder(session, p, dwt=False):
     if (dwt):
-        return os.path.join(data_path, session, "DWT_hila_db15", particiapnt_to_char(p))
-    return os.path.join(data_path, session, "IC_w_and_photos", particiapnt_to_char(p))
+        return os.path.join(get_data_path(), session, "DWT_hila_db15", particiapnt_to_char(p))
+    return os.path.join(get_data_path(), session, "IC_w_and_photos", particiapnt_to_char(p))
 
 def open_w_if_exisis(session, p, dwt=False):
     try:
-        return np.load(os.path.join(get_component_analysis_folder(data_path, session, p, dwt), "w.npy"))
+        return np.load(os.path.join(get_component_analysis_folder(session, p, dwt), "w.npy"))
     except:
         return None
 
 def open_whiten_if_exisis(session, p, dwt=False):
     try:
-        return np.load(os.path.join(get_component_analysis_folder(data_path, session, p, dwt), "white.npy"))
+        return np.load(os.path.join(get_component_analysis_folder(session, p, dwt), "white.npy"))
     except:
         return None
 
 def save_new_w(session, p, w):
-    folder = get_component_analysis_folder(data_path, session, p)
+    folder = get_component_analysis_folder(session, p)
     os.makedirs(folder, exist_ok=True)
     np.save(os.path.join(folder, "w.npy"), w)
 
 def load_special_components_if_exists(data_path, session, p, dwt=False):
-    folder = get_component_analysis_folder(data_path, session, p, dwt)
+    folder = get_component_analysis_folder(session, p, dwt)
     file_path = os.path.join(folder, "components_chosen.txt")
     #if file exists:
     if os.path.exists(file_path):

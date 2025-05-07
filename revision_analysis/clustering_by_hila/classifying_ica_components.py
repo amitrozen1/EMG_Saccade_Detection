@@ -289,9 +289,73 @@ def classify_participant_components_using_atlas(participant_data, new_data_path,
                                 new_data_path, image_path, centroids_lst)
     print(f"finished classifying {participant_ID}_{session_number}")
 
+atlas_folder = "./revision_analysis/clustering_by_hila/atlas"
+x_coor_path = os.path.join(atlas_folder, 'side_x_coor.npy')
+y_coor_path = os.path.join(atlas_folder, 'side_y_coor.npy')
+image_path = os.path.join(atlas_folder, 'side.jpg')
+x_coor = np.load(x_coor_path)
+y_coor = np.load(y_coor_path)
+
+print("Loading the centroids...")
+threshold = np.load(f"{atlas_folder}/threshold.npy")
+
+# Load the centroids
+centroids_lst = []
+for i in range(0, 17):
+    current_centroid = np.load(f"{atlas_folder}/cluster_{i + 1}.npy")
+    current_centroid = np.nan_to_num(current_centroid, nan=0)
+    centroids_lst.append(current_centroid)
 
 
+def classify_components(w, number_of_channels=16, image_path=image_path):
+    image, height, width = image_load(image_path)  # load image
+    # calculations for the heatmap
+    inverse = np.absolute(inv(w))
+    grid_y, grid_x = np.mgrid[1:height + 1, 1:width + 1]
+    points = np.column_stack((x_coor, y_coor))
+    
+    f_interpolate = []
+    for i in range(number_of_channels):
+        interpolate_data = griddata(points, inverse[:, i], (grid_x, grid_y), method='linear')
+        norm_arr = norm(interpolate_data)
+        f_interpolate.append(norm_arr)  # plot heatmap
 
+    participant_data = np.array(f_interpolate)
+    participant_data = np.nan_to_num(participant_data, nan=0)
+
+    ica_electrode_order = [0 for i in range(16)]
+    flags_list = [False for i in range(17)]
+    min_dist_list = [0 for i in range(17)]
+    # create a list for each participant with the channels that were assigned to each cluster
+    for i in range(len(participant_data)):
+        dist_from_centroids = []
+        for centroid in centroids_lst[:-1]:
+            centroid = centroid.reshape(height, width)
+            dist = np.linalg.norm(participant_data[i, :] - centroid)
+            dist_from_centroids.append(dist)
+        # find distance from closest centroid (out of the 16 real clusters)
+        closest_centroid_dist = np.min(dist_from_centroids)
+        closest_centroid_index = np.argmin(dist_from_centroids)
+        if closest_centroid_dist < threshold:
+            if not flags_list[closest_centroid_index]:
+                flags_list[closest_centroid_index] = True
+                min_dist_list[closest_centroid_index] = closest_centroid_dist
+                ica_electrode_order[i] = closest_centroid_index
+            else:
+                if min_dist_list[closest_centroid_index] > closest_centroid_dist:
+                    # get the index of the channel that was already assigned to the cluster
+                    index = ica_electrode_order.index(closest_centroid_index)
+                    ica_electrode_order[index] = 16
+                    ica_electrode_order[i] = closest_centroid_index
+                    min_dist_list[closest_centroid_index] = closest_centroid_dist
+                else:
+                    # if the channel was already assigned to a cluster, assign it to the garbage cluster
+                    ica_electrode_order[i] = 16
+        else:
+            # if the channel was already assigned to a cluster, assign it to the garbage cluster
+            ica_electrode_order[i] = 16
+
+    return ica_electrode_order
 
 if __name__ == '__main__':
     # Create argument parser
@@ -309,21 +373,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     atlas_folder = os.path.join(args.project_folder, 'atlas')
     # Load coordinates
-    x_coor_path = os.path.join(atlas_folder, 'side_x_coor.npy')
-    y_coor_path = os.path.join(atlas_folder, 'side_y_coor.npy')
-    image_path = os.path.join(atlas_folder, 'side.jpg')
-    x_coor = np.load(x_coor_path)
-    y_coor = np.load(y_coor_path)
 
-    print("Loading the centroids...")
-    threshold = np.load(f"{atlas_folder}/threshold.npy")
-
-    # Load the centroids
-    centroids_lst = []
-    for i in range(0, args.n_clusters):
-        current_centroid = np.load(f"{atlas_folder}/cluster_{i + 1}.npy")
-        current_centroid = np.nan_to_num(current_centroid, nan=0)
-        centroids_lst.append(current_centroid)
 
     # Process data
     data_path = os.path.join(args.project_folder, 'data')

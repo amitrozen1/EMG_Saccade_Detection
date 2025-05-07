@@ -72,7 +72,7 @@ def convert_row(df, i, whose_reading):
 def read_experiment_csv_batch2(data_path, session):
     uc_list = []
     session_folder = os.path.join(data_path, session)
-    fname = [x for x in os.listdir(session_folder) if x.endswith(".csv")][0]
+    fname = [x for x in os.listdir(session_folder) if "TwoPeopleEmg" in x][0]
     csvPath = os.path.join(session_folder, fname)
     df = pd.read_csv(csvPath)
 
@@ -90,3 +90,23 @@ def read_experiment_csv_batch2(data_path, session):
         uc_list.append(s1_arr)
         uc_list.append(s2_arr)
     return uc_list
+
+def get_results_after_revision(data_path, session, p=None, story_num=None):
+    #if p is None, return the regular results.
+    #else: listening results
+    res = read_experiment_csv_batch2(data_path, session)
+    if p is None:
+        return res
+    
+    correct_row = []
+    #find the right row:
+    for row in res:
+        if row[0].split(".")[0] == story_num:
+            correct_row = row
+            break
+    
+    #return choice, rt, isOther
+    if p == "A":
+        return [correct_row[2],correct_row[4], correct_row[6]]
+    return [correct_row[3],correct_row[5], correct_row[6]]
+    

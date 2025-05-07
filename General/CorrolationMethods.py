@@ -390,14 +390,15 @@ def find_true_global_maximum(correlations):
     return global_max_index
 
 
-def get_max_xcorr_pearson_1d(mat1, mat2, tMaxMs, downsample_window_ms, s, e, direction, shouldReturnXcorrVec=False, weighted_corr = False, lowess=False):
+def get_max_xcorr_pearson_1d(mat1, mat2, tMaxMs, downsample_window_ms, s, e, direction, shouldReturnXcorrVec=False):
     tMax = tMaxMs // downsample_window_ms
+    tInc = 5
     s1 = 0
     if "one" in direction.lower():
-        if ( s1 - (500//downsample_window_ms) > 0 ):
-            s1 = s - (500//downsample_window_ms)
-        else:
-            s1 = s
+        # if ( s1 - (500//downsample_window_ms) > 0 ):
+        #     s1 = s - (500//downsample_window_ms)
+        # else:
+        s1 = s
     elif s - tMax > 0:
         s1 = s - tMax
 
@@ -416,14 +417,9 @@ def get_max_xcorr_pearson_1d(mat1, mat2, tMaxMs, downsample_window_ms, s, e, dir
 
     correlations = []
     # Compute Pearson correlation for each shift within the valid range
-    for i in range(len(mat1) - len(mat2) + 1):
+    for i in range(0, len(mat1) - len(mat2) + 1, tInc):
         window = mat1[i:i+len(mat2)]
         corr = np.corrcoef(window, mat2)[0, 1]
-        if weighted_corr:
-            # if "read" in state.lower():
-            #     corr = corr * min_mean_weight(window)#np.mean(window) #window is always the listener.
-            # else:
-            corr = corr * np.mean(window) #min_mean_weight(window, mat2)#np.min([np.mean(window), np.mean(mat2)])
         if not np.isnan(corr):
             correlations.append(corr)
         else:
@@ -433,20 +429,12 @@ def get_max_xcorr_pearson_1d(mat1, mat2, tMaxMs, downsample_window_ms, s, e, dir
             max_corr = corr
             max_ind = i
 
-    if shouldReturnXcorrVec:
-        return correlations
-    
-
-    if (lowess):
-        lowess_xcorr_vec = sm.nonparametric.lowess(correlations, np.arange(len(correlations)), frac=0.25)[:, 1]
-        max_ind = find_true_global_maximum(lowess_xcorr_vec)
-        if max_ind is None:
-            return 0,0
-        max_corr = correlations[max_ind]
-
-    
+     
     #old and fault : max_ind = s1 + max_ind * downsample_window_ms
     max_ind = np.abs(s1 - s + max_ind) * downsample_window_ms
+
+    if shouldReturnXcorrVec:
+        return max_corr, max_ind, correlations
 
     return max_corr, max_ind
 
