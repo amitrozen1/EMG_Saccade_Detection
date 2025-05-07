@@ -139,7 +139,7 @@ class EdfAnalyzer:
             lower_bound = 50.0
 
         if forEEG:
-            sigbufs = butter_bandpass_filter(sigbufs, 0.5, 8.0, sampling_rate)
+            sigbufs = butter_bandpass_filter(sigbufs, 0.1, 30.0, sampling_rate)
         elif (doButter):
             sigbufs = filter_signal(sigbufs, sampling_rate) #butter_bandpass_filter(sigbufs, lower_bound, 400.0, sampling_rate)
         
