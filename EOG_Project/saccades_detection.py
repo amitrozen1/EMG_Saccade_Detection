@@ -2,7 +2,31 @@ import numpy as np
 import matplotlib.pyplot as plt
 from differentiation import differentiate
 
-def find_saccades_on_channel(signal, fs, method='l11', k=3.0, low_frac=0.3, min_dur_s=0.01):
+
+def _smooth_speed(speed, fs, win_ms=5):
+    """Mean moving window smoothing on |v| to tame derivative noise."""
+    n = max(1, int(win_ms * fs / 1000))
+    if n % 2 == 0:
+        n += 1
+    if speed.size < n:
+        return speed
+    from numpy.lib.stride_tricks import sliding_window_view
+    w = sliding_window_view(speed, n).mean(axis=1)
+    pad = n // 2
+    return np.pad(w, (pad, pad), mode='edge')
+
+def _robust_thr(speed, k):
+    """Robust threshold: median + k * 1.4826 * MAD (fallback to std if MAD==0)."""
+    med = np.median(speed)
+    mad = np.median(np.abs(speed - med))
+    sigma = 1.4826 * mad if mad > 0 else speed.std(ddof=1)
+    return med + k * sigma
+
+
+def find_saccades_on_channel(signal, fs, method='l11', k=3.5, low_frac=0.75, min_dur_s=0.012,
+                             *,  # only keyword below (keeps old calls valid)
+                              robust=True, smooth_ms=5, refractory_s=0.025,
+                              veto_speed=None, veto_factor=5.0):
     """
     Detect saccades in a given signal using velocity threshold method.
 
@@ -24,7 +48,16 @@ def find_saccades_on_channel(signal, fs, method='l11', k=3.0, low_frac=0.3, min_
 
     speed = np.abs(v)   # we're intrested in the speed of the signal, not the direction
     
-    threshold = speed.mean() + k * speed.std(ddof=1)        # μ + k·σ
+    #threshold = speed.mean() + k * speed.std(ddof=1)        # μ + k·σ
+    # smooth |v| a little (reduces choppiness of the derivative)
+    if smooth_ms and smooth_ms > 0:
+        speed = _smooth_speed(speed, fs, win_ms=smooth_ms)
+
+    # robust threshold by default; fallback to mean+std if robust=False
+    if robust:
+        threshold = _robust_thr(speed, k)
+    else:
+        threshold = speed.mean() + k * speed.std(ddof=1)
     low = low_frac * threshold
 
 
@@ -35,7 +68,6 @@ def find_saccades_on_channel(signal, fs, method='l11', k=3.0, low_frac=0.3, min_
         breaks = np.where(np.diff(idx) > 1)[0]  # Find positions where there is a gap (>1) between consecutive True indices in 'idx'
         starts = np.r_[0, breaks + 1]   # Start indices (in 'idx') for each continuous True segment
         ends   = np.r_[breaks, idx.size - 1]    # End indices (in 'idx') for each continuous True segment
-
 
         for s, e in zip(idx[starts], idx[ends]):
 
@@ -51,14 +83,46 @@ def find_saccades_on_channel(signal, fs, method='l11', k=3.0, low_frac=0.3, min_
                 onsets.append(onset)
                 offsets.append(offset)
 
-    return {
-        'velocity': v,
-        'speed': speed,
-        'thr_high': threshold,
-        'thr_low': low,
-        'onsets': np.array(onsets, int),
-        'offsets': np.array(offsets, int),
-    }
+    # --- refractory merge (e.g., 25 ms) ---
+    if onsets and offsets and refractory_s and refractory_s > 0:
+        refr = int(refractory_s * fs)
+        merged_on, merged_off = [], []
+        for a, b in zip(onsets, offsets):
+            if not merged_on:
+                merged_on.append(a); merged_off.append(b)
+            else:
+                if a - merged_off[-1] <= refr:
+                    merged_off[-1] = max(merged_off[-1], b)
+                else:
+                    merged_on.append(a); merged_off.append(b)
+        onsets  = merged_on
+        offsets = merged_off
+
+    """
+    # --- optional blink veto using a provided vertical speed (veto_speed) ---
+    if veto_speed is not None and len(onsets):
+        vsp = np.abs(veto_speed)
+        # robust vertical threshold, then a high veto level
+        vthr = _robust_thr(vsp, k)
+        veto_hi = veto_factor * vthr
+        bad = vsp > veto_hi
+
+        # pad ±100 ms around bad samples
+        pad = int(0.1 * fs)
+        if pad > 0:
+            from numpy import convolve, ones
+            bad = convolve(bad.astype(int), ones(2 * pad + 1, dtype=int), mode='same') > 0
+
+        keep_on, keep_off = [], []
+        for a, b in zip(onsets, offsets):
+            if not bad[a:b + 1].any():
+                keep_on.append(a); keep_off.append(b)
+        onsets, offsets = keep_on, keep_off
+
+    """
+    onsets  = np.array(onsets,  int)
+    offsets = np.array(offsets, int)
+    return {'velocity': v, 'speed': speed, 'thr_high': threshold, 'thr_low': low, 'onsets': np.array(onsets, int), 'offsets': np.array(offsets, int)}
 
 
 

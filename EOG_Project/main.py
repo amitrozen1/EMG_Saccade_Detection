@@ -104,7 +104,7 @@ for story_id, signals in stories_EOG_like_channels.items():
     downsampled_EOG_like[story_id] = {}
     
     for ch, signal in signals.items():
-        signal_ds = downsample_signal(signal, 8)
+        signal_ds = downsample_signal(signal, 8, zero_phase=True)  # downsample by factor of 8
         downsampled_EOG_like[story_id][ch] = signal_ds
         
 
@@ -116,7 +116,7 @@ for story_id, chans in downsampled_EOG_like.items():
     results[story_id] = {}
     for name, sig in chans.items():
         results[story_id][name] = find_saccades_on_channel(
-            sig, fs=fs_down, method='l11', k=3.0, low_frac=0.3, min_dur_s=0.010
+            sig, fs=fs_down, method='l11', k=3.5, low_frac=0.75, min_dur_s=0.012, robust=True, smooth_ms=5, refractory_s=0.025
         )
 
     
@@ -185,6 +185,6 @@ for name in ["v_eog_1","v_eog_2","h_eog_1","h_eog_2"]:
     sig = downsampled_EOG_like[sid][name]
     qc_plot_signal_and_velocity(
         sig, fs_down,
-        method='l11', k=3.0, low_frac=0.30, min_dur_s=0.010,
+        method='l11', k=3.5, low_frac=0.75, min_dur_s=0.012,
         title_prefix=f"{sid} :: {name}"
     )

@@ -6,7 +6,7 @@ from filtering import interp_nans
 from differentiation import differentiate  # method='l11'
 
 
-def qc_plot_signal_and_velocity(signal, fs, *,method='l11', k=3.0, low_frac=0.3, min_dur_s=0.010, title_prefix=""):
+def qc_plot_signal_and_velocity(signal, fs, *,method='l11', k=3.5, low_frac=0.75, min_dur_s=0.012, title_prefix=""):
     """
     Plots the signal over time, the velocity (derivative) over time with thresholds and highlighted saccades.  
     """
@@ -18,7 +18,7 @@ def qc_plot_signal_and_velocity(signal, fs, *,method='l11', k=3.0, low_frac=0.3,
         x = interp_nans(x)
 
     # find saccades (using μ+k·σ + histerzis low_frac)
-    res = find_saccades_on_channel(x, fs=fs, method=method, k=k, low_frac=low_frac, min_dur_s=min_dur_s)
+    res = find_saccades_on_channel(x, fs=fs, method=method, k=k, low_frac=low_frac, min_dur_s=min_dur_s,robust=True, smooth_ms=5, refractory_s=0.025)
     onsets  = res["onsets"]
     offsets = res["offsets"]
     thr_hi  = res["thr_high"]
