@@ -1,22 +1,13 @@
 import pickle
 import numpy as np
-from scipy.signal import butter, filtfilt, decimate
+from scipy.signal import butter, decimate, sosfiltfilt  
+
 
 def load_pkl_file(path):
-    """
-    with open(path, 'rb') as f:
-        try:
-            data = pickle.load(f)
-        except ModuleNotFoundError as e:
-            print("שגיאה - חסר מודול:", e)
-            f.seek(0)  # מחזיר את הקובץ להתחלה
-            import pickletools
-            pickletools.dis(f)
-
-    """
     with open(path, 'rb') as f:
         data = pickle.load(f)
     return data
+
 
 def get_emg_signal_from_chunk(chunk, channel_index):
     signal = chunk.data[channel_index, :]   # Extract all the signal time points for the specified channel index
@@ -24,41 +15,48 @@ def get_emg_signal_from_chunk(chunk, channel_index):
     return signal, freq
 
 
-def bandpass_filter(signal, fs, lowcut=0.1, highcut=10.0, order=4):
-    """
-    Apply a bandpass filter to a signal.
-    
+def bandpass_filter(signal, fs, lowcut=0.1, highcut=40.0, order=4):
+    """    
     Args:
         signal (np.array): Input signal.
         fs (float): Sampling frequency (Hz).
         lowcut (float): Lower cutoff frequency (Hz).
         highcut (float): Upper cutoff frequency (Hz).
         order (int): Filter order.
-        
-    Returns:
-        np.array: Filtered signal.
     """
+    x = np.asarray(signal, dtype=np.float64)
+    x = interp_nans(x)  # Interpolate NaNs to avoid issues with filtering
+    
     nyq = 0.5 * fs
     low = lowcut / nyq
     high = highcut / nyq
+    
+    if not (0 < low < high < 1):
+        raise ValueError(f"Invalid band: low={lowcut}Hz, high={highcut}Hz, fs={fs}")
 
-    b, a = butter(order, [low, high], btype='bandpass')
-    filtered = filtfilt(b, a, signal)
-
-    return filtered
-
+    sos = butter(order, [low, high], btype='bandpass', output='sos')
+    y = sosfiltfilt(sos, x)
+    
+    return y
 
 
 def downsample_signal(signal, factor, zero_phase=True):
-    """
-    Downsample signal using decimate (includes anti-aliasing filter).
+    x = np.asarray(signal, dtype=np.float64)
+    x = interp_nans(x)
+    return decimate(x, factor, ftype='iir', zero_phase=zero_phase)
+
+
+def interp_nans(x: np.ndarray):
+    x = np.asarray(x, dtype=float)
+    if len(x) == 0:
+        return x
     
-    Args:
-        signal (np.array): Input signal.
-        factor (int): Downsampling factor.
-        zero_phase (bool): If True, use filtfilt to avoid phase shift.
+    maskFinite = ~np.isnan(x) # Create a mask for finite values, True for finite, False for NaN or Inf
+    if maskFinite.all(): # If all values are finite, no need to interpolate
+        return x
+    if maskFinite.sum() < 2: # Not enough points to interpolate
+        return np.zeros_like(x, dtype=float)
     
-    Returns:
-        np.array: Downsampled signal.
-    """
-    return decimate(signal, factor, ftype='iir', zero_phase=zero_phase)
+    interp_signal = x.copy()
+    interp_signal[~maskFinite] = np.interp(np.where(~maskFinite)[0], np.where(maskFinite)[0], x[maskFinite])
+    return interp_signal
