@@ -9,7 +9,7 @@ def load_single_data(session, p):
     path_and_corrections = getPathsFromSessionFolder(os.path.join(get_data_path(), session))
     #now 0.1 - 30HZ
     Y, chunks, freq = EdfAnalyzer.Read(path_and_corrections[p][0], path_and_corrections[p][1], downsample_window_in_ms=1, forEEG=True)
-    Y = wavelet_denoising(Y, freq, 'db15')
+    Y = wavelet_denoising(Y, freq, 'db15')  # check wether 'db4' or 'sym4' is better
 
     reading_order = [A, A, B, B, A, A, B, B]
 

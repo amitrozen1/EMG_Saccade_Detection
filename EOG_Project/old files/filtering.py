@@ -1,6 +1,6 @@
 import pickle
 import numpy as np
-from scipy.signal import butter, decimate, sosfiltfilt  
+from scipy.signal import butter, resample_poly, sosfiltfilt  
 
 
 def load_pkl_file(path):
@@ -40,10 +40,11 @@ def bandpass_filter(signal, fs, lowcut=0.1, highcut=40.0, order=4):
     return y
 
 
-def downsample_signal(signal, factor, zero_phase=True):
-    x = np.asarray(signal, dtype=np.float64)
-    x = interp_nans(x)
-    return decimate(x, factor, ftype='iir', zero_phase=zero_phase)
+def downsample_signal(signal, og_fs, target_fs):
+    factor = og_fs / target_fs
+    if factor != int(factor):
+        raise ValueError(f"Downsampling factor must be integer, got {factor}")
+    return resample_poly(signal, up=1, down=int(factor))
 
 
 def interp_nans(x: np.ndarray):
@@ -60,3 +61,17 @@ def interp_nans(x: np.ndarray):
     interp_signal = x.copy()
     interp_signal[~maskFinite] = np.interp(np.where(~maskFinite)[0], np.where(maskFinite)[0], x[maskFinite])
     return interp_signal
+
+def lowpass_filter(signal, fs, cutoff=40.0, order=4):
+    """    
+    Args:
+        signal (np.array): Input signal.
+        fs (float): Sampling frequency (Hz).
+        cutoff (float): Cutoff frequency (Hz).
+        order (int): Filter order.
+    """
+
+    sos = butter(order, cutoff/(fs/2), btype='lowpass', output='sos')
+    y = sosfiltfilt(sos, np.asarray(signal, dtype=np.float64))
+    
+    return y

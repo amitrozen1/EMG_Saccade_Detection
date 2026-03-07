@@ -1,0 +1,13 @@
+PyQt5>=5.15.4
+joblib>=1.0.1
+jupyterlab>=3.0.10
+matplotlib>=3.3.4
+numba>=0.53.0
+numpy>=1.20.1
+pandas>=1.2.3
+pingouin>=0.3.10
+pyperclip>=1.8.2
+scikit-learn>=0.24.1
+scipy>=1.6.1
+tables>=3.6.1
+tqdm>=4.59.0

@@ -7,6 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from differentiation import differentiate
 
+epsilon = 1e-12
 
 def smooth_ma(x, win=5):
     """Simple moving-average smoothing."""
@@ -39,7 +40,7 @@ def detect_saccades_engbert_2d(vx, vy, fs, eta=6.0, smooth_win=5,
 
     sigx = engbert_sigma_hat(np.abs(vx))
     sigy = engbert_sigma_hat(np.abs(vy))
-    gamx, gamy = eta * sigx, eta * sigy
+    gamx, gamy = eta * sigx + epsilon, eta * sigy + epsilon # avoid zero division
 
     S = (vx / gamx) ** 2 + (vy / gamy) ** 2
     th = 1.0
@@ -78,11 +79,11 @@ def detect_saccades_engbert_2d(vx, vy, fs, eta=6.0, smooth_win=5,
 
     return events
 
-def classify_direction_by_angle(h_vel, v_vel, onset, offset):
-    h_peak = np.max(np.abs(h_vel[onset:offset+1]))
-    v_peak = np.max(np.abs(v_vel[onset:offset+1]))
+def classify_direction_by_angle(h_vel, v_vel, onset, pk, offset):
+    vx = h_vel[pk]
+    vy = v_vel[pk]
 
-    theta = np.degrees(np.arctan2(v_peak, h_peak))
+    theta = np.degrees(np.arctan2(vy, vx))
 
     if abs(theta) < 30:
         return "H"
@@ -137,6 +138,27 @@ def detect_blinks_standard(v_sig, h_sig, fs,
             blinks.append((s, e))
 
     return blinks
+
+def remove_saccades_overlapping_blinks(saccades, blinks):
+    """Return only saccades that do NOT overlap any blink interval."""
+    if not blinks or not saccades:
+        return saccades
+
+    clean = []
+    # הופכים את רשימת המצמוצים למקטעים (onset–offset)
+    blink_intervals = [(b[0], b[1]) for b in blinks]
+
+    for onset, pk, offset in saccades:
+        overlaps = False
+        for b_on, b_off in blink_intervals:
+            # יש חפיפה בזמן?
+            if not (offset < b_on or onset > b_off):
+                overlaps = True
+                break
+        if not overlaps:
+            clean.append((onset, pk, offset))
+    return clean
+
 
 def plot_velocity_with_method(signal, fs, method='l11', threshold=None, title=None):
     """Plot velocity (and optionally mark points above threshold)."""
