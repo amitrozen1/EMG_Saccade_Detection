@@ -117,7 +117,34 @@ def plot_blinks_trace(downsampled_EOG_like, results_engbert, story_id, fs_down,
     if savepath is not None:
         plt.savefig(savepath, dpi=300)
         
-
+def plot_saccades_trace(h_sig, saccades, fs, title="Saccades Trace", start_sec=0, end_sec=None):
+    """
+    Plots the horizontal EOG signal and highlights detected saccades.
+    """
+    time = np.arange(len(h_sig)) / fs
+    
+    plt.figure(figsize=(15, 5))
+    # ציור הסיגנל האופקי
+    plt.plot(time, h_sig, label='HEOG Signal', color='black', linewidth=1)
+    
+    # הוספת רקע אדום לכל סאקדה (מה-onset ועד ה-offset)
+    for idx, (onset, pk, offset) in enumerate(saccades):
+        # שמים לייבל רק בראשון כדי לא להציף את המקרא
+        label = 'Detected Saccade' if idx == 0 else None
+        plt.axvspan(onset / fs, offset / fs, color='red', alpha=0.3, label=label)
+        
+    plt.xlabel('Time [s]')
+    plt.ylabel('Amplitude [a.u.]')
+    plt.title(title)
+    
+    # אפשרות להתמקד על חלק מהזמן אם רוצים
+    if end_sec is not None:
+        plt.xlim(start_sec, end_sec)
+        
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+    
 def make_all_figures(results_engbert, downsampled_EOG_like, fs_down):
     """
     Creates 3 figures:

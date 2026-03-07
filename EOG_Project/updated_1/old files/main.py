@@ -11,7 +11,7 @@ import numpy as np
 from filtering import load_pkl_file, get_emg_signal_from_chunk, bandpass_filter, downsample_signal, interp_nans, lowpass_filter
 from saccade_detection import detect_saccades_engbert_2d, classify_direction_by_angle, detect_blinks_standard, remove_saccades_overlapping_blinks
 from differentiation import differentiate
-from results_plots import plot_saccade_distribution, make_all_figures
+from results_plots import plot_saccade_distribution, make_all_figures, plot_saccades_trace
 from results_summary import print_results_table
 
 
@@ -190,6 +190,28 @@ print("=== ANALYSIS COMPLETE ===")
 make_all_figures(results_engbert, downsampled_EOG_like, fs_down)
 
 # ==========================================
+# Diagnostic Plot: Saccades on Time Axis
+# ==========================================
+
+diagnostic_story = 'PA_Reading_2.png_4' 
+
+if diagnostic_story in downsampled_EOG_like and diagnostic_story in results_engbert:
+    sig_to_plot = downsampled_EOG_like[diagnostic_story]['h_eog_lf']
+    
+    saccades_to_plot = results_engbert[diagnostic_story].get("saccades_no_blinks", [])
+    
+    print(f"\n--- Plotting Saccades Trace for {diagnostic_story} ---")
+    plot_saccades_trace(
+        h_sig=sig_to_plot, 
+        saccades=saccades_to_plot, 
+        fs=fs_down, 
+        title=f"Saccades Trace for {diagnostic_story}"
+    )
+else:
+    print(f"Error: {diagnostic_story} not found in the data.")
+    
+"""
+# ==========================================
 # Diagnostic Plot: בואי נראה את המהירות בעיניים
 # ==========================================
 diagnostic_story = 'PB_Reading_15.png_3' 
@@ -203,5 +225,6 @@ if diagnostic_story in downsampled_EOG_like:
     plot_velocity_with_method(sig_to_plot, fs=fs_down, method='l11', threshold=None, title=f"Velocity for {diagnostic_story}")
 else:
     print(f"Error: {diagnostic_story} not found in the data.")
-
+    
+"""
 
