@@ -209,7 +209,33 @@ if diagnostic_story in downsampled_EOG_like and diagnostic_story in results_engb
     )
 else:
     print(f"Error: {diagnostic_story} not found in the data.")
+
+# ==========================================
+# Ultimate Pipeline Validation Plot
+# ==========================================
+from results_plots import plot_pipeline_validation
+
+val_story = 'PA_Reading_2.png_4' 
+
+if val_story in downsampled_EOG_like and val_story in results_engbert:
+    h_sig = downsampled_EOG_like[val_story]['h_eog_lf']
+    v_sig = downsampled_EOG_like[val_story]['v_eog_blink'] # הסיגנל האנכי למצמוצים
     
+    # ניקח את הסאקדות והמצמוצים שזוהו
+    final_saccades = results_engbert[val_story].get("saccades_no_blinks", [])
+    final_blinks = results_engbert[val_story].get("blinks", [])
+    
+    print(f"\n--- Plotting Pipeline Validation for {val_story} ---")
+    plot_pipeline_validation(
+        h_sig=h_sig, 
+        v_sig=v_sig, 
+        saccades=final_saccades, 
+        blinks=final_blinks, 
+        fs=fs_down, 
+        title=f"Pipeline Validation: {val_story}"
+        # start_sec=10, end_sec=30 # אפשר להוריד את ה-# פה כדי להתמקד על קטע קצר וברור
+    )
+     
 """
 # ==========================================
 # Diagnostic Plot: בואי נראה את המהירות בעיניים

@@ -144,6 +144,45 @@ def plot_saccades_trace(h_sig, saccades, fs, title="Saccades Trace", start_sec=0
     plt.legend()
     plt.tight_layout()
     plt.show()
+
+def plot_pipeline_validation(h_sig, v_sig, saccades, blinks, fs, title="Pipeline Validation", start_sec=0, end_sec=None):
+    """
+    Creates a dual-plot figure aligning HEOG (with saccades) and VEOG (with blinks) 
+    on the exact same time axis to validate the detection pipeline.
+    """
+    time = np.arange(len(h_sig)) / fs
+    
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(15, 8), sharex=True)
+    
+    # --- Top Plot: HEOG and Saccades ---
+    ax1.plot(time, h_sig, color='black', linewidth=1, label='HEOG Signal')
+    for idx, (onset, pk, offset) in enumerate(saccades):
+        lbl = 'Detected Saccade' if idx == 0 else None
+        ax1.axvspan(onset / fs, offset / fs, color='red', alpha=0.3, label=lbl)
+    
+    ax1.set_ylabel('HEOG Amplitude [a.u.]')
+    ax1.set_title(f"{title} - Horizontal Eye Movements")
+    ax1.legend(loc='upper right')
+    ax1.grid(True, alpha=0.3)
+    
+    # --- Bottom Plot: VEOG and Blinks ---
+    ax2.plot(time, v_sig, color='navy', linewidth=1, label='VEOG Signal')
+    for idx, (onset, offset) in enumerate(blinks):
+        lbl = 'Detected Blink' if idx == 0 else None
+        ax2.axvspan(onset / fs, offset / fs, color='purple', alpha=0.3, label=lbl)
+    
+    ax2.set_ylabel('VEOG Amplitude [a.u.]')
+    ax2.set_xlabel('Time [s]')
+    ax2.set_title(f"{title} - Vertical Eye Movements (Blinks)")
+    ax2.legend(loc='upper right')
+    ax2.grid(True, alpha=0.3)
+    
+    # Zoom option
+    if end_sec is not None:
+        ax1.set_xlim(start_sec, end_sec)
+        
+    plt.tight_layout()
+    plt.show()
     
 def make_all_figures(results_engbert, downsampled_EOG_like, fs_down):
     """
