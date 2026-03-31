@@ -135,7 +135,7 @@ for full_id, signals in downsampled_EOG_like.items():
         
         # Detect saccades using Engbert 2D algorithm with Dynamic Local Thresholds
         saccades = detect_saccades_engbert_2d(h_vel, v_vel, fs=fs_down, eta_h=5.0, eta_v=10.0, smooth_win=15, 
-            min_samples=10, max_ms=150, refractory_ms=0, use_hysteresis=False, edge_frac=0.3, window_sec=2.0)
+            min_samples=10, max_ms=150, refractory_ms=0, use_hysteresis=False, edge_frac=0.3)
         results_engbert[full_id]["saccades"] = saccades
         results_engbert[full_id]["h_vel"] = h_vel
         results_engbert[full_id]["v_vel"] = v_vel
