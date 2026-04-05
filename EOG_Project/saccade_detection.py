@@ -124,14 +124,16 @@ def detect_blinks_standard(v_sig, h_sig, fs, k_vert=3.0, k_horiz=5.0, min_ms=50,
 
     return blinks
 
-def remove_saccades_overlapping_blinks(saccades, blinks):
-    """Return only saccades that do NOT overlap any blink interval."""
+def remove_saccades_overlapping_blinks(saccades, blinks, fs = 500, buffer_ms=50):
+    """Return only saccades that do NOT overlap any blink interval.
+    Adds a buffer (padding) around blinks to swallow trailing electrical noise (crosstalk)."""
     if not blinks or not saccades:
         return saccades
 
     clean = []
 
-    blink_intervals = [(b[0], b[1]) for b in blinks]
+    buffer_samples = int(buffer_ms * fs / 1000.0)
+    blink_intervals = [(max(0, b[0] - buffer_samples), b[1] + buffer_samples) for b in blinks]
 
     for onset, pk, offset in saccades:
         overlaps = False

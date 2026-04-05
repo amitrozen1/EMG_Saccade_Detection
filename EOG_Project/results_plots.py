@@ -220,3 +220,43 @@ def make_all_figures(results_engbert, downsampled_EOG_like, fs_down):
     )
     
     plt.show()
+    
+
+def run_diagnostics(results_engbert, downsampled_EOG_like, fs_down):
+    """
+    Runs specific diagnostic plots (Saccades Trace and Pipeline Validation) 
+    to keep the main execution file clean.
+    """
+    story_id = 'PA_Reading_2.png_4' 
+
+    # --- 1. Saccades Trace ---
+    if story_id in downsampled_EOG_like and story_id in results_engbert:
+        h_sig = downsampled_EOG_like[story_id]['h_eog_lf']
+        saccades = results_engbert[story_id].get("saccades_no_blinks", [])
+        
+        print(f"\n--- Plotting Saccades Trace for {story_id} ---")
+        plot_saccades_trace(
+            h_sig=h_sig, 
+            saccades=saccades, 
+            fs=fs_down, 
+            title=f"Saccades Trace for {story_id}"
+        )
+    else:
+        print(f"Error: {story_id} not found in the data for Saccades Trace.")
+
+    # --- 2. Pipeline Validation Plot ---
+    if story_id in downsampled_EOG_like and story_id in results_engbert:
+        h_sig = downsampled_EOG_like[story_id]['h_eog_lf']
+        v_sig = downsampled_EOG_like[story_id]['v_eog_blink']
+        final_saccades = results_engbert[story_id].get("saccades_no_blinks", [])
+        final_blinks = results_engbert[story_id].get("blinks", [])
+        
+        print(f"\n--- Plotting Pipeline Validation for {story_id} ---")
+        plot_pipeline_validation(
+            h_sig=h_sig, 
+            v_sig=v_sig, 
+            saccades=final_saccades, 
+            blinks=final_blinks, 
+            fs=fs_down, 
+            title=f"Pipeline Validation: {story_id}"
+        )

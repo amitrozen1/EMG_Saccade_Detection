@@ -11,8 +11,8 @@ import numpy as np
 from filtering import load_pkl_file, get_emg_signal_from_chunk, bandpass_filter, downsample_signal, interp_nans, lowpass_filter
 from saccade_detection import detect_saccades_engbert_2d, classify_direction_by_angle, detect_blinks_standard, remove_saccades_overlapping_blinks
 from differentiation import differentiate
-from results_plots import plot_saccade_distribution, make_all_figures, plot_saccades_trace
-from results_summary import print_results_table
+from results_plots import plot_saccade_distribution, make_all_figures, plot_saccades_trace, run_diagnostics
+from results_summary import print_results_table, print_saccade_sequence
 
 
 #story_id = "Reading_2.png_4"
@@ -134,7 +134,7 @@ for full_id, signals in downsampled_EOG_like.items():
         h_vel = differentiate(h_eog.astype(np.float64), step=time_step, method='l11')
         
         # Detect saccades using Engbert 2D algorithm with Dynamic Local Thresholds
-        saccades = detect_saccades_engbert_2d(h_vel, v_vel, fs=fs_down, eta_h=5.0, eta_v=10.0, smooth_win=15, 
+        saccades = detect_saccades_engbert_2d(h_vel, v_vel, fs=fs_down, eta_h=6, eta_v=14, smooth_win=15, 
             min_samples=10, max_ms=150, refractory_ms=0, use_hysteresis=False, edge_frac=0.3)
         results_engbert[full_id]["saccades"] = saccades
         results_engbert[full_id]["h_vel"] = h_vel
@@ -165,7 +165,7 @@ for full_id, signals in downsampled_EOG_like.items():
     blinks = []
     if v_eog_blink is not None and h_eog is not None:
         blinks = detect_blinks_standard( v_eog_blink.astype(float),
-            h_eog.astype(float), fs_down)
+            h_eog.astype(float), fs_down, k_vert=2.0)
         results_engbert[full_id]["blinks"] = blinks
         
         print(f"{full_id} - Blinks (standard amplitude-based): "
@@ -190,52 +190,17 @@ print("=== ANALYSIS COMPLETE ===")
 make_all_figures(results_engbert, downsampled_EOG_like, fs_down)
 
 # ==========================================
-# Diagnostic Plot: Saccades on Time Axis
+# Diagnostics, Validation Plots & Sequences
 # ==========================================
+run_diagnostics(results_engbert, downsampled_EOG_like, fs_down)
 
-diagnostic_story = 'PA_Reading_2.png_4' 
-
-if diagnostic_story in downsampled_EOG_like and diagnostic_story in results_engbert:
-    sig_to_plot = downsampled_EOG_like[diagnostic_story]['h_eog_lf']
-    
-    saccades_to_plot = results_engbert[diagnostic_story].get("saccades_no_blinks", [])
-    
-    print(f"\n--- Plotting Saccades Trace for {diagnostic_story} ---")
-    plot_saccades_trace(
-        h_sig=sig_to_plot, 
-        saccades=saccades_to_plot, 
-        fs=fs_down, 
-        title=f"Saccades Trace for {diagnostic_story}"
-    )
-else:
-    print(f"Error: {diagnostic_story} not found in the data.")
+print_saccade_sequence(results_engbert, "PA_Reading_13.png_2")
 
 # ==========================================
-# Ultimate Pipeline Validation Plot
+# Cognitive Pattern Proof: Saccade Sequence
 # ==========================================
-from results_plots import plot_pipeline_validation
+print_saccade_sequence(results_engbert, "PA_Reading_13.png_2")
 
-val_story = 'PA_Reading_2.png_4' 
-
-if val_story in downsampled_EOG_like and val_story in results_engbert:
-    h_sig = downsampled_EOG_like[val_story]['h_eog_lf']
-    v_sig = downsampled_EOG_like[val_story]['v_eog_blink'] # הסיגנל האנכי למצמוצים
-    
-    # ניקח את הסאקדות והמצמוצים שזוהו
-    final_saccades = results_engbert[val_story].get("saccades_no_blinks", [])
-    final_blinks = results_engbert[val_story].get("blinks", [])
-    
-    print(f"\n--- Plotting Pipeline Validation for {val_story} ---")
-    plot_pipeline_validation(
-        h_sig=h_sig, 
-        v_sig=v_sig, 
-        saccades=final_saccades, 
-        blinks=final_blinks, 
-        fs=fs_down, 
-        title=f"Pipeline Validation: {val_story}"
-        # start_sec=10, end_sec=30 # אפשר להוריד את ה-# פה כדי להתמקד על קטע קצר וברור
-    )
-     
 """
 # ==========================================
 # Diagnostic Plot: בואי נראה את המהירות בעיניים

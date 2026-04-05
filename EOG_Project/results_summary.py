@@ -36,3 +36,27 @@ def print_results_table(results_engbert, downsampled_EOG_like):
         n_blinks = len(blinks)
 
         print(f"{story_id}\t{h_cnt}\t{v_cnt}\t{o_cnt}\t{total}\t{n_blinks}")
+
+def print_saccade_sequence(results_engbert, story_id, num_events=40):
+    """
+    Prints the sequence of saccade directions (e.g., H -> H -> V) 
+    to prove the cognitive pattern of reading.
+    """
+    if story_id not in results_engbert:
+        print(f"Error: Story {story_id} not found in results.")
+        return
+
+    ev = results_engbert[story_id]
+    saccades = ev.get("saccades_no_blinks", [])
+    h_vel = ev.get("h_vel")
+    v_vel = ev.get("v_vel")
+    
+    sequence = []
+    if h_vel is not None and v_vel is not None:
+        for onset, pk, offset in saccades:
+            label = classify_direction_by_angle(h_vel, v_vel, onset, offset)
+            sequence.append(label)
+            
+        print(f"\n=== Saccade Sequence for {story_id} ===")
+        print(" -> ".join(sequence[:num_events]))
+        print("================================================\n")
