@@ -1,15 +1,9 @@
-"""
-Saccade detection for EOG-like signals.
-Based loosely on Engbert & Kliegl (2003).
-"""
-
 import numpy as np
-import matplotlib.pyplot as plt
-from differentiation import differentiate
 
 epsilon = 1e-12
 
 def smooth_ma(x, win=5):
+    """Applies a moving average filter to smooth the signal."""
     x = np.asarray(x, float)
     if win <= 1: return x
     k = int(win) | 1
@@ -17,22 +11,24 @@ def smooth_ma(x, win=5):
     return np.convolve(x, ker, mode='same')
 
 def engbert_sigma_hat(v):
+    """Estimates the velocity noise threshold based on the median absolute deviation."""
     v = np.asarray(v, float)
     med = np.median(v)
     return np.sqrt(np.median((v - med) ** 2))
 
-
 def detect_saccades_engbert_2d(vx, vy, fs, eta_h=5.0, eta_v=10.0, smooth_win=15,
                                min_samples=10, max_ms=150, refractory_ms=0,
-                               use_hysteresis=False, edge_frac=0.3): 
-    
+                               use_hysteresis=False, edge_frac=0.3):
+    """
+    Detects saccades using a modified 2D Engbert & Kliegl (2003) algorithm 
+    with asymmetric velocity thresholds.
+    """
     vx = smooth_ma(vx, smooth_win)
     vy = smooth_ma(vy, smooth_win)
 
     sigx = engbert_sigma_hat(np.abs(vx))
     sigy = engbert_sigma_hat(np.abs(vy))
     
-    # asymmetric thresholds for horizontal and vertical components
     gamx = eta_h * sigx + epsilon
     gamy = eta_v * sigy + epsilon
 
@@ -50,8 +46,10 @@ def detect_saccades_engbert_2d(vx, vy, fs, eta_h=5.0, eta_v=10.0, smooth_win=15,
         if S[i] > th:
             pk = i
             while pk + 1 < n and S[pk + 1] >= S[pk]: pk += 1
+            
             onset = pk
             while onset > 0 and S[onset - 1] >= edge: onset -= 1
+            
             offset = pk
             while offset + 1 < n and S[offset + 1] >= edge: offset += 1
 
@@ -66,7 +64,7 @@ def detect_saccades_engbert_2d(vx, vy, fs, eta_h=5.0, eta_v=10.0, smooth_win=15,
     return events
 
 def classify_direction_by_angle(h_vel, v_vel, onset_idx, offset_idx):
-    # Classifies saccade direction using the net displacement vector (integral of velocity over the saccade duration).
+    """Classifies saccade direction (H, V, OBL) based on the net displacement vector."""
     dx = np.sum(h_vel[onset_idx : offset_idx + 1])
     dy = np.sum(v_vel[onset_idx : offset_idx + 1])
 
@@ -81,10 +79,8 @@ def classify_direction_by_angle(h_vel, v_vel, onset_idx, offset_idx):
 
 def detect_blinks_standard(v_sig, h_sig, fs, k_vert=3.0, k_horiz=5.0, min_ms=50, max_ms=250):
     """
-    Amplitude-based blink detection:
-    - large vertical deflection (VEOG)
-    - small horizontal deflection (HEOG)
-    - duration within [min_ms, max_ms]
+    Detects blinks based on robust amplitude thresholds:
+    Requires large VEOG deflection and minimal HEOG deflection.
     """
     v_sig = np.asarray(v_sig, float)
     h_sig = np.asarray(h_sig, float)
@@ -92,23 +88,20 @@ def detect_blinks_standard(v_sig, h_sig, fs, k_vert=3.0, k_horiz=5.0, min_ms=50,
     v_abs = np.abs(v_sig)
     h_abs = np.abs(h_sig)
 
-    # robust vertical threshold (median + k * MAD)
     v_med = np.median(v_abs)
     v_mad = np.median(np.abs(v_abs - v_med)) + epsilon
     v_thr = v_med + k_vert * v_mad
 
-    # robust horizontal max
     h_med = np.median(h_abs)
     h_mad = np.median(np.abs(h_abs - h_med)) + epsilon
     h_thr = h_med + k_horiz * h_mad
 
-    # candidate samples: big VEOG, small HEOG
     mask = (v_abs > v_thr) & (h_abs < h_thr)
     idx = np.flatnonzero(mask)
+    
     if idx.size == 0:
         return []
 
-    # duration constraints
     min_samp = int(min_ms * fs / 1000.0)
     max_samp = int(max_ms * fs / 1000.0)
 
@@ -124,25 +117,25 @@ def detect_blinks_standard(v_sig, h_sig, fs, k_vert=3.0, k_horiz=5.0, min_ms=50,
 
     return blinks
 
-def remove_saccades_overlapping_blinks(saccades, blinks, fs = 500, buffer_ms=50):
-    """Return only saccades that do NOT overlap any blink interval.
-    Adds a buffer (padding) around blinks to swallow trailing electrical noise (crosstalk)."""
+def remove_saccades_overlapping_blinks(saccades, blinks, fs=500, buffer_ms=50):
+    """
+    Filters out saccades that overlap with blink intervals.
+    Applies a temporal buffer to fully mask trailing blink artifacts (crosstalk).
+    """
     if not blinks or not saccades:
         return saccades
 
     clean = []
-
     buffer_samples = int(buffer_ms * fs / 1000.0)
     blink_intervals = [(max(0, b[0] - buffer_samples), b[1] + buffer_samples) for b in blinks]
 
     for onset, pk, offset in saccades:
         overlaps = False
         for b_on, b_off in blink_intervals:
-            # Check if saccade interval [onset, offset] overlaps with blink interval [b_on, b_off]
             if not (offset < b_on or onset > b_off):
                 overlaps = True
                 break
         if not overlaps:
             clean.append((onset, pk, offset))
+            
     return clean
-

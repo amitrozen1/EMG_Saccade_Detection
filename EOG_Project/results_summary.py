@@ -1,5 +1,3 @@
-# results_summary.py
-
 import numpy as np
 from saccade_detection import classify_direction_by_angle
 
@@ -53,10 +51,20 @@ def print_saccade_sequence(results_engbert, story_id, num_events=40):
     
     sequence = []
     if h_vel is not None and v_vel is not None:
-        for onset, pk, offset in saccades:
+        for onset, _, offset in saccades:
             label = classify_direction_by_angle(h_vel, v_vel, onset, offset)
-            sequence.append(label)
             
-        print(f"\n=== Saccade Sequence for {story_id} ===")
+            if label == "H":
+                dx = np.sum(h_vel[onset : offset + 1])
+                # Classify horizontal saccades as left or right based on net displacement
+                if dx > 0:
+                    sequence.append("H(R)") # rightward
+                else:
+                    sequence.append("H(L)") # leftward
+            else:
+                sequence.append(label)
+                
+        print(f"\n=== True Cognitive Sequence for {story_id} ===")
         print(" -> ".join(sequence[:num_events]))
         print("================================================\n")
+        
