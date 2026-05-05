@@ -1,6 +1,7 @@
 import sys
 import os
 import numpy as np
+import pandas as pd
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 sys.path.append("C:/Users/moshe/Documents/Saccades_project/emg_data_analysis")
@@ -15,6 +16,14 @@ from results_summary import print_results_table, print_saccade_sequence
 # Configuration
 freq = 4000
 fs_down = 500
+CHANNELS = {
+    'VEOG_UPPER': 13,       # above the right eyebrow tail (lateral)
+    'VEOG_LOWER': 9,        # below the right eye
+    'HEOG_RIGHT': 11,       # corner of the right eye
+    'REF_FRONTAL_L': 15,    # at the top of the forhead (left)
+    'REF_FRONTAL_R': 14     # at the top of the forhead (right)
+    
+}
 
 channels_of_interest = [9, 11, 12, 13, 14, 15]
 
@@ -39,16 +48,16 @@ results_engbert = {}
 for pid, data in all_participants:
     for story_id, chunk in data.items():
         full_id = f"{pid}_{story_id}"
-        story_signals = {ch: chunk.data[ch] for ch in channels_of_interest}
+        story_signals = {ch: chunk.data[ch] for ch in CHANNELS.values()}
         stories_original_channels[full_id] = story_signals
 
 # EOG Approximation (Channel Subtraction)
 for full_id, signals in stories_original_channels.items():
     stories_EOG_like_channels[full_id] = {
-        "v_eog_saccade": signals[13] - signals[9],
-        "v_eog_blink": signals[13] - signals[9],
-        "h_eog_lf": signals[11] - signals[15],
-        "h_eog_rf": signals[11] - signals[14]
+        "v_eog_saccade": signals[CHANNELS['VEOG_UPPER']] - signals[CHANNELS['VEOG_LOWER']],
+        "v_eog_blink": signals[CHANNELS['VEOG_UPPER']] - signals[CHANNELS['VEOG_LOWER']],
+        "h_eog_lf": signals[CHANNELS['HEOG_RIGHT']] - signals[CHANNELS['REF_FRONTAL_L']],
+        "h_eog_rf": signals[CHANNELS['HEOG_RIGHT']] - signals[CHANNELS['REF_FRONTAL_R']]
     }
 
 # Filtering
@@ -65,9 +74,11 @@ for full_id, signals in stories_filtered_channels.items():
         downsampled_EOG_like[full_id][ch] = downsample_signal(signal, freq, fs_down)
 
 def pick_best_heog(h1, h2, fs):
-    """Selects the HEOG derivation with the larger velocity variance."""
-    v1 = np.diff(h1) * fs
-    v2 = np.diff(h2) * fs
+    """Selects the HEOG derivation with the larger velocity variance using Lanczos differentiation.."""
+    time_step = 1.0 / fs
+    v1 = differentiate(h1.astype(np.float64), step=time_step, method='l11')
+    v2 = differentiate(h2.astype(np.float64), step=time_step, method='l11')
+    
     mad1 = np.median(np.abs(v1 - np.median(v1)))
     mad2 = np.median(np.abs(v2 - np.median(v2)))
     return h1 if mad1 > mad2 else h2
@@ -89,7 +100,7 @@ for full_id, signals in downsampled_EOG_like.items():
         h_vel = differentiate(h_eog.astype(np.float64), step=time_step, method='l11')
         
         saccades = detect_saccades_engbert_2d(h_vel, v_vel, fs=fs_down, eta_h=6, eta_v=11, smooth_win=15, 
-            min_samples=10, max_ms=150, refractory_ms=0, use_hysteresis=False, edge_frac=0.3)
+            min_samples=10, max_ms=150, refractory_ms=15, use_hysteresis=False, edge_frac=0.3)
         
         results_engbert[full_id].update({"saccades": saccades, "h_vel": h_vel, "v_vel": v_vel})
         
