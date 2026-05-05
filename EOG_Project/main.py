@@ -83,6 +83,60 @@ def pick_best_heog(h1, h2, fs):
     mad2 = np.median(np.abs(v2 - np.median(v2)))
     return h1 if mad1 > mad2 else h2
 
+# === GRID SEARCH OPTIMIZATION ===
+print("\n=== STARTING GRID SEARCH FOR SMOOTHING WINDOW ===")
+window_options = [5, 7, 9, 11, 15]
+grid_results = []
+
+for full_id, signals in downsampled_EOG_like.items():
+    v_eog_sac = signals.get("v_eog_saccade")
+    h_eog_raw = signals.get("h_eog_lf")
+    h_eog_alt = signals.get("h_eog_rf")
+    
+    # בחירת הערוץ האופקי הטוב ביותר פעם אחת
+    h_eog = pick_best_heog(h_eog_raw, h_eog_alt, fs_down) if (h_eog_raw is not None and h_eog_alt is not None) else h_eog_raw
+    time_step = 1.0 / fs_down
+    
+    if v_eog_sac is not None and h_eog is not None:
+        # גזירה (Lanczos) מבוצעת פעם אחת בלבד מחוץ ללולאת ה-Grid Search
+        v_vel = differentiate(v_eog_sac.astype(np.float64), step=time_step, method='l11')
+        h_vel = differentiate(h_eog.astype(np.float64), step=time_step, method='l11')
+        
+        for win in window_options:
+            # הרצת אלגוריתם הזיהוי עם החלון המשתנה
+            test_saccades = detect_saccades_engbert_2d(
+                h_vel, v_vel, fs=fs_down, eta_h=6, eta_v=11, 
+                smooth_win=win, min_samples=10, max_ms=150, 
+                refractory_ms=0, use_hysteresis=False, edge_frac=0.3
+            )
+            
+            h_cnt = v_cnt = o_cnt = 0
+            for onset, _, offset in test_saccades:
+                label = classify_direction_by_angle(h_vel, v_vel, onset, offset)
+                if label == "H": h_cnt += 1
+                elif label == "V": v_cnt += 1
+                else: o_cnt += 1
+                
+            total_sac = len(test_saccades)
+            # חישוב יחס - מונע חלוקה באפס
+            hv_ratio = (h_cnt / v_cnt) if v_cnt > 0 else float('inf')
+            
+            grid_results.append({
+                "Story": full_id,
+                "Window": win,
+                "Horizontal": h_cnt,
+                "Vertical": v_cnt,
+                "Oblique": o_cnt,
+                "H:V Ratio": round(hv_ratio, 2),
+                "Total": total_sac
+            })
+
+# הדפסת התוצאות כטבלת Pandas מסודרת
+df_grid = pd.DataFrame(grid_results)
+print(df_grid.sort_values(by=["Story", "Window"]).to_string(index=False))
+print("=================================================\n")
+
+
 # Saccade & Blink Detection
 for full_id, signals in downsampled_EOG_like.items():
     results_engbert[full_id] = {}
