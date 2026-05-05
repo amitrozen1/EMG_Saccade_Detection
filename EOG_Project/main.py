@@ -169,7 +169,7 @@ for full_id, signals in downsampled_EOG_like.items():
         print(f"{full_id} - Saccades (Engbert 2D): Total={len(saccades)}, H={h_saccades}, V={v_saccades}, OBL={obl_saccades}")
         
     if v_eog_blink is not None and h_eog is not None:
-        blinks = detect_blinks_standard(v_eog_blink.astype(float), h_eog.astype(float), fs_down, k_vert=2.0)
+        blinks = detect_blinks_standard(v_eog_blink.astype(float), h_eog.astype(float), fs_down, k_vert=5.0)
         results_engbert[full_id]["blinks"] = blinks
         print(f"{full_id} - Blinks: Found {len(blinks)} events")
         
