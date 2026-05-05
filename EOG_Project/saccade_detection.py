@@ -16,7 +16,7 @@ def engbert_sigma_hat(v):
     med = np.median(v)
     return np.sqrt(np.median((v - med) ** 2))
 
-def detect_saccades_engbert_2d(vx, vy, fs, eta_h=5.0, eta_v=10.0, smooth_win=15,
+def detect_saccades_engbert_2d(vx, vy, fs, eta_h=5.0, eta_v=10.0, smooth_win=5,
                                min_samples=10, max_ms=150, refractory_ms=0,
                                use_hysteresis=False, edge_frac=0.3):
     """
@@ -117,21 +117,26 @@ def detect_blinks_standard(v_sig, h_sig, fs, k_vert=3.0, k_horiz=5.0, min_ms=50,
 
     return blinks
 
-def remove_saccades_overlapping_blinks(saccades, blinks, fs=500, buffer_ms=50):
+def remove_saccades_overlapping_blinks(saccades, blinks, fs=500, pre_buffer_ms=20, post_buffer_ms=100):
     """
     Filters out saccades that overlap with blink intervals.
-    Applies a temporal buffer to fully mask trailing blink artifacts (crosstalk).
+    Applies an asymmetric temporal buffer to mask brief pre-blink artifacts 
+    and prolonged trailing blink recovery (crosstalk/capacitive discharge) artifacts.
     """
     if not blinks or not saccades:
         return saccades
 
     clean = []
-    buffer_samples = int(buffer_ms * fs / 1000.0)
-    blink_intervals = [(max(0, b[0] - buffer_samples), b[1] + buffer_samples) for b in blinks]
+    pre_samples = int(pre_buffer_ms * fs / 1000.0)
+    post_samples = int(post_buffer_ms * fs / 1000.0)
+
+    # Asymmetric buffering: tighter before the blink, longer after to account for recovery
+    blink_intervals = [(max(0, b[0] - pre_samples), b[1] + post_samples) for b in blinks]
 
     for onset, pk, offset in saccades:
         overlaps = False
         for b_on, b_off in blink_intervals:
+            # Check for any temporal overlap between the saccade and padded blink
             if not (offset < b_on or onset > b_off):
                 overlaps = True
                 break
