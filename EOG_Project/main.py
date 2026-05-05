@@ -93,17 +93,15 @@ for full_id, signals in downsampled_EOG_like.items():
     h_eog_raw = signals.get("h_eog_lf")
     h_eog_alt = signals.get("h_eog_rf")
     
-    # בחירת הערוץ האופקי הטוב ביותר פעם אחת
+    # pick the best HEOG channel based on velocity variance to optimize saccade detection sensitivity
     h_eog = pick_best_heog(h_eog_raw, h_eog_alt, fs_down) if (h_eog_raw is not None and h_eog_alt is not None) else h_eog_raw
     time_step = 1.0 / fs_down
     
     if v_eog_sac is not None and h_eog is not None:
-        # גזירה (Lanczos) מבוצעת פעם אחת בלבד מחוץ ללולאת ה-Grid Search
         v_vel = differentiate(v_eog_sac.astype(np.float64), step=time_step, method='l11')
         h_vel = differentiate(h_eog.astype(np.float64), step=time_step, method='l11')
         
         for win in window_options:
-            # הרצת אלגוריתם הזיהוי עם החלון המשתנה
             test_saccades = detect_saccades_engbert_2d(
                 h_vel, v_vel, fs=fs_down, eta_h=6, eta_v=11, 
                 smooth_win=win, min_samples=10, max_ms=150, 
@@ -118,7 +116,7 @@ for full_id, signals in downsampled_EOG_like.items():
                 else: o_cnt += 1
                 
             total_sac = len(test_saccades)
-            # חישוב יחס - מונע חלוקה באפס
+            # ratio calculation with handling for zero vertical count to avoid division by zero
             hv_ratio = (h_cnt / v_cnt) if v_cnt > 0 else float('inf')
             
             grid_results.append({
@@ -131,7 +129,6 @@ for full_id, signals in downsampled_EOG_like.items():
                 "Total": total_sac
             })
 
-# הדפסת התוצאות כטבלת Pandas מסודרת
 df_grid = pd.DataFrame(grid_results)
 print(df_grid.sort_values(by=["Story", "Window"]).to_string(index=False))
 print("=================================================\n")
