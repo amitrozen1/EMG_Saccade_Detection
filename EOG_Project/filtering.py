@@ -3,58 +3,40 @@ import numpy as np
 from scipy.signal import butter, resample_poly, sosfiltfilt
 
 def load_pkl_file(path):
-    """Loads a pickle file from the given path."""
     with open(path, 'rb') as f:
-        data = pickle.load(f)
-    return data
+        return pickle.load(f)
 
 def get_emg_signal_from_chunk(chunk, channel_index):
-    """Extracts signal time points for a specific channel index."""
     signal = chunk.data[channel_index, :] 
     freq = getattr(chunk, 'freq', 500) 
     return signal, freq
 
 def bandpass_filter(signal, fs, lowcut=0.1, highcut=40.0, order=4):
-    """Applies a Butterworth bandpass filter."""
-    x = np.asarray(signal, dtype=np.float64)
+    x = np.asarray(signal, dtype=float)
     x = interp_nans(x) 
     
     nyq = 0.5 * fs
     low = lowcut / nyq
     high = highcut / nyq
-    
-    if not (0 < low < high < 1):
-        raise ValueError(f"Invalid band: low={lowcut}Hz, high={highcut}Hz, fs={fs}")
 
     sos = butter(order, [low, high], btype='bandpass', output='sos')
-    y = sosfiltfilt(sos, x)
-    return y
+    return sosfiltfilt(sos, x)
 
 def downsample_signal(signal, og_fs, target_fs):
-    """Downsamples a signal by an integer factor."""
     factor = og_fs / target_fs
-    if factor != int(factor):
-        raise ValueError(f"Downsampling factor must be integer, got {factor}")
     return resample_poly(signal, up=1, down=int(factor))
 
-def interp_nans(x: np.ndarray):
-    """Interpolates NaN values in a 1D numpy array."""
+def interp_nans(x):
+    # Quick linear interpolation for missing data points
     x = np.asarray(x, dtype=float)
-    if len(x) == 0:
+    nans = np.isnan(x)
+    if not nans.any():
         return x
-    
-    maskFinite = ~np.isnan(x) 
-    if maskFinite.all(): 
-        return x
-    if maskFinite.sum() < 2: 
-        return np.zeros_like(x, dtype=float)
-    
-    interp_signal = x.copy()
-    interp_signal[~maskFinite] = np.interp(np.where(~maskFinite)[0], np.where(maskFinite)[0], x[maskFinite])
-    return interp_signal
+        
+    non_nans = ~nans
+    x[nans] = np.interp(np.where(nans)[0], np.where(non_nans)[0], x[non_nans])
+    return x
 
 def lowpass_filter(signal, fs, cutoff=40.0, order=4):
-    """Applies a Butterworth lowpass filter."""
     sos = butter(order, cutoff/(fs/2), btype='lowpass', output='sos')
-    y = sosfiltfilt(sos, np.asarray(signal, dtype=np.float64))
-    return y
+    return sosfiltfilt(sos, np.asarray(signal, dtype=np.float64))

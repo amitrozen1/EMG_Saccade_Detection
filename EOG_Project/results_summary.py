@@ -2,12 +2,6 @@ import numpy as np
 from saccade_detection import classify_direction_by_angle
 
 def print_results_table(results_engbert, downsampled_EOG_like):
-    """
-    Prints a summary table of saccade directions and blink counts per story.
-    Story    Horizontal   Vertical   Oblique   Total   Blinks
-
-    Uses saccades_no_blinks if available; otherwise uses original saccades.
-    """
     print("Story\tHorizontal\tVertical\tOblique\tTotal\tBlinks")
 
     for story_id, events in results_engbert.items():
@@ -16,32 +10,20 @@ def print_results_table(results_engbert, downsampled_EOG_like):
         h_vel = events.get("h_vel", None)
         v_vel = events.get("v_vel", None)
 
-        h_cnt = 0
-        v_cnt = 0
-        o_cnt = 0
+        h_cnt = v_cnt = o_cnt = 0
 
         if h_vel is not None and v_vel is not None:
             for onset, pk, offset in saccades:
                 label = classify_direction_by_angle(h_vel, v_vel, onset, offset)
-                if label == "H":
-                    h_cnt += 1
-                elif label == "V":
-                    v_cnt += 1
-                else:
-                    o_cnt += 1
+                if label == "H": h_cnt += 1
+                elif label == "V": v_cnt += 1
+                else: o_cnt += 1
 
-        total = len(saccades)
-        n_blinks = len(blinks)
-
-        print(f"{story_id}\t{h_cnt}\t{v_cnt}\t{o_cnt}\t{total}\t{n_blinks}")
+        print(f"{story_id}\t{h_cnt}\t{v_cnt}\t{o_cnt}\t{len(saccades)}\t{len(blinks)}")
 
 def print_saccade_sequence(results_engbert, story_id, num_events=40):
-    """
-    Prints the sequence of saccade directions (e.g., H -> H -> V) 
-    to prove the cognitive pattern of reading.
-    """
     if story_id not in results_engbert:
-        print(f"Error: Story {story_id} not found in results.")
+        print(f"Error: Story {story_id} not found.")
         return
 
     ev = results_engbert[story_id]
@@ -53,18 +35,12 @@ def print_saccade_sequence(results_engbert, story_id, num_events=40):
     if h_vel is not None and v_vel is not None:
         for onset, _, offset in saccades:
             label = classify_direction_by_angle(h_vel, v_vel, onset, offset)
-            
             if label == "H":
                 dx = np.sum(h_vel[onset : offset + 1])
-                # Classify horizontal saccades as left or right based on net displacement
-                if dx > 0:
-                    sequence.append("H(R)") # rightward
-                else:
-                    sequence.append("H(L)") # leftward
+                sequence.append("H(R)" if dx > 0 else "H(L)")
             else:
                 sequence.append(label)
                 
-        print(f"\n=== True Cognitive Sequence for {story_id} ===")
+        print(f"\n=== Sequence for {story_id} ===")
         print(" -> ".join(sequence[:num_events]))
         print("================================================\n")
-        
