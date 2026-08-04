@@ -115,7 +115,7 @@ def make_all_figures(results_engbert, downsampled_EOG_like, fs_down):
 def run_diagnostics(results_engbert, downsampled_EOG_like, fs_down):
     story_id = 'PA_Reading_2.png_4' 
     if story_id in downsampled_EOG_like and story_id in results_engbert:
-        h_sig = downsampled_EOG_like[story_id]['h_eog_lf']
+        h_sig = results_engbert[story_id].get("h_eog_used",downsampled_EOG_like[story_id]["h_eog_lf"])
         v_sig = downsampled_EOG_like[story_id]['v_eog_blink']
         saccades = results_engbert[story_id].get("saccades_no_blinks", [])
         blinks = results_engbert[story_id].get("blinks", [])

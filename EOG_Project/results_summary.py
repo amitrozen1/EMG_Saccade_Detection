@@ -5,7 +5,7 @@ def print_results_table(results_engbert, downsampled_EOG_like):
     print("Story\tHorizontal\tVertical\tOblique\tTotal\tBlinks")
 
     for story_id, events in results_engbert.items():
-        saccades = events.get("saccades_no_blinks") or events.get("saccades") or []
+        saccades = events["saccades_no_blinks"] if "saccades_no_blinks" in events else events.get("saccades", [])
         blinks = events.get("blinks", [])
         h_vel = events.get("h_vel", None)
         v_vel = events.get("v_vel", None)

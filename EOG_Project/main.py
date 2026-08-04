@@ -81,6 +81,7 @@ for full_id, signals in downsampled_EOG_like.items():
     else:
         h_eog = h_eog_raw
     
+    results_engbert[full_id]["h_eog_used"] = h_eog
     time_step = 1.0 / fs_down
     blinks = []
     

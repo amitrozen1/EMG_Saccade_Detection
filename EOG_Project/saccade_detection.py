@@ -155,38 +155,45 @@ def calculate_lse_threshold(x, min_peaks=20):
     return 1.02 * peaks[best_split]
 
 def detect_blinks(v_sig, v_diff, fs=500):
-    v_abs = np.abs(v_sig)
-    d_abs = np.abs(v_diff)
+    v_sig = np.asarray(v_sig, float)
+    v_diff = np.asarray(v_diff, float)
 
-    amp_threshold = max(calculate_lse_threshold(v_abs),
-        get_fallback_threshold(v_abs, k=5.0))
+    v_signal_abs = np.abs(v_sig)
+    v_diff_abs = np.abs(v_diff)
 
-    diff_threshold = max(calculate_lse_threshold(d_abs),
-        get_fallback_threshold(d_abs, k=4.0))
+    blink_amp_threshold = max(
+        calculate_lse_threshold(v_signal_abs),
+        get_fallback_threshold(v_signal_abs, k=5.0)
+    )
+
+    blink_diff_threshold = max(
+        calculate_lse_threshold(v_diff_abs),
+        get_fallback_threshold(v_diff_abs, k=4.0)
+    )
     
-    # Get blink candidates based on velocity
-    diff_peaks = get_local_maxima(np.abs(v_diff))
-    candidates = []
+    # Get blink candidates based on vertical velocity
+    diff_peaks = get_local_maxima(v_diff_abs)
+    blink_candidates = []
     for p in diff_peaks:
-        if np.abs(v_diff[p]) > diff_threshold:
-            candidates.append(p)
+        if v_diff_abs[p] > blink_diff_threshold:
+            blink_candidates.append(p)
     
     min_blink_samples = int(0.09 * fs)        
     max_peak_samples = int(0.8 * fs)
     max_blink_samples = int(1.2 * fs)
-    half_win = int(0.30 * fs)
+    half_window = int(0.30 * fs)
     
     blinks = []
     n_samples = len(v_sig)
     skip_until = 0
     
-    for cand in candidates:
+    for cand in blink_candidates:
         if cand < skip_until:
             continue
             
         # Search window for actual amplitude peak around velocity peak
-        win_start = max(0, cand - half_win)
-        win_end = min(n_samples, cand + half_win)
+        win_start = max(0, cand - half_window)
+        win_end = min(n_samples, cand + half_window)
         window_data = np.abs(v_sig[win_start:win_end])
         
         if len(window_data) == 0:
@@ -195,16 +202,16 @@ def detect_blinks(v_sig, v_diff, fs=500):
         actual_peak = win_start + np.argmax(window_data)
         peak_amp = np.abs(v_sig[actual_peak])
         
-        if peak_amp <= amp_threshold:
+        if peak_amp <= blink_amp_threshold:
             continue
             
         # 1. Check max duration of the high-amplitude peak itself
         p_start = actual_peak
-        while p_start > 0 and np.abs(v_sig[p_start - 1]) > amp_threshold:
+        while p_start > 0 and np.abs(v_sig[p_start - 1]) > blink_amp_threshold:
             p_start -= 1
             
         p_end = actual_peak
-        while p_end + 1 < n_samples and np.abs(v_sig[p_end + 1]) > amp_threshold:
+        while p_end + 1 < n_samples and np.abs(v_sig[p_end + 1]) > blink_amp_threshold:
             p_end += 1
             
         if (p_end - p_start + 1) > max_peak_samples:
@@ -227,8 +234,8 @@ def detect_blinks(v_sig, v_diff, fs=500):
             
         # 3. Verify morphology: both positive and negative peaks in velocity
         velocity_window = v_diff[onset:offset+1]
-        has_pos = np.any(velocity_window > diff_threshold)
-        has_neg = np.any(velocity_window < -diff_threshold)
+        has_pos = np.any(velocity_window > blink_diff_threshold)
+        has_neg = np.any(velocity_window < -blink_diff_threshold)
         
         if has_pos and has_neg:
             blinks.append([onset, offset])
