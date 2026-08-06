@@ -179,7 +179,6 @@ def detect_blinks(v_sig, v_diff, fs=500):
             blink_candidates.append(p)
     
     min_blink_samples = int(0.09 * fs)        
-    max_peak_samples = int(0.8 * fs)
     max_blink_samples = int(1.2 * fs)
     half_window = int(0.30 * fs)
     
@@ -203,18 +202,6 @@ def detect_blinks(v_sig, v_diff, fs=500):
         peak_amp = np.abs(v_sig[actual_peak])
         
         if peak_amp <= blink_amp_threshold:
-            continue
-            
-        # 1. Check max duration of the high-amplitude peak itself
-        p_start = actual_peak
-        while p_start > 0 and np.abs(v_sig[p_start - 1]) > blink_amp_threshold:
-            p_start -= 1
-            
-        p_end = actual_peak
-        while p_end + 1 < n_samples and np.abs(v_sig[p_end + 1]) > blink_amp_threshold:
-            p_end += 1
-            
-        if (p_end - p_start + 1) > max_peak_samples:
             continue
             
         # 2. Find overall blink boundaries (10% of local peak amplitude)
