@@ -14,7 +14,7 @@ from filtering import load_pkl_file, downsample_signal, lowpass_filter
 from saccade_detection import (detect_saccades_engbert_2d, classify_direction_by_angle, detect_blinks,
     remove_saccades_overlapping_blinks, pick_best_heog)
 from differentiation import differentiate
-from results_plots import make_all_figures, run_diagnostics
+from results_plots_review import make_all_figures, run_diagnostics
 from results_summary import print_results_table, print_saccade_sequence
 
 freq = 4000

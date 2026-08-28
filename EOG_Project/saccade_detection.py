@@ -219,14 +219,17 @@ def detect_blinks(v_sig, v_diff, fs=500):
         if (blink_dur < min_blink_samples) or (blink_dur > max_blink_samples):
             continue
             
-        # 3. Verify morphology: keep only the relaxed sign-change pattern
-        velocity_window = v_diff[onset:offset+1]
-        sign_change = np.any(np.sign(velocity_window[:-1]) * np.sign(velocity_window[1:]) < 0)
+        # 3. Verify morphology: check for velocity sign change (zero crossing) characteristic of blinks
+        velocity_window = v_diff[onset : offset + 1]
+        if len(velocity_window) > 0:
+            sign_change = np.any(np.sign(velocity_window[:-1]) * np.sign(velocity_window[1:]) < 0)
+            morphology_valid = sign_change
+        else:
+            morphology_valid = False
 
-        if sign_change:
+        if morphology_valid:
             blinks.append([onset, offset])
-            skip_until = offset + int(0.15 * fs)
-            
+            skip_until = offset + int(0.15 * fs)    
     if len(blinks) == 0:
         return []
         

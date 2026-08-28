@@ -2,9 +2,31 @@ import pickle
 import numpy as np
 from scipy.signal import butter, resample_poly, sosfiltfilt
 
+
+class Annotation:
+    def __init__(self) -> None:
+        self.Time = None
+
+
+class Chunk:
+    def __init__(self) -> None:
+        self.Start = None
+        self.End = None
+        self.data = None
+        self.Data = None
+
 def load_pkl_file(path):
     with open(path, 'rb') as f:
-        return pickle.load(f)
+        return _ChunkAwareUnpickler(f).load()
+
+
+class _ChunkAwareUnpickler(pickle.Unpickler):
+    def find_class(self, module, name):
+        if module == '__main__' and name == 'Chunk':
+            return Chunk
+        if module == '__main__' and name == 'Annotation':
+            return Annotation
+        return super().find_class(module, name)
 
 def get_emg_signal_from_chunk(chunk, channel_index):
     signal = chunk.data[channel_index, :] 
