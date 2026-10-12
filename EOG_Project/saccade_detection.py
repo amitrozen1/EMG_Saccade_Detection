@@ -1,5 +1,7 @@
 import numpy as np
-from differentiation import differentiate 
+
+from config import FREQ, FS_DOWN, CHANNELS, ENGBERT_PARAMS
+from becerra_code.src.shared.differentiation import differentiate
 
 def smooth_ma(x, win=5):
     x = np.asarray(x, float)
