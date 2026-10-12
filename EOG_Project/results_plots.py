@@ -1,10 +1,117 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from saccade_detection import classify_direction_by_angle   
+from saccade_detection import classify_direction_by_angle
+
+
+def plot_reader_listener_overlay(
+    reader_signal,
+    listener_signal,
+    reader_saccades,
+    listener_saccades,
+    fs,
+    title="Speaker vs Listener",
+    start_sec=0,
+    end_sec=None,
+    reader_blinks=None,
+    listener_blinks=None,
+    savepath=None,
+    show=True,
+):
+    """Plot both participants from the common story onset on one shared time axis."""
+    reader_blinks = reader_blinks or []
+    listener_blinks = listener_blinks or []
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(16, 8), sharex=True)
+    reader_time = np.arange(len(reader_signal)) / fs
+    listener_time = np.arange(len(listener_signal)) / fs
+
+    ax1.plot(reader_time, reader_signal, color="black", linewidth=0.8, label="Speaker HEOG")
+    for idx, (onset, _, offset) in enumerate(reader_saccades):
+        lbl = "Saccade" if idx == 0 else None
+        ax1.axvspan(onset / fs, offset / fs, color="#d62728", alpha=0.28, label=lbl)
+    for idx, (onset, offset) in enumerate(reader_blinks):
+        lbl = "Blink" if idx == 0 else None
+        ax1.axvspan(onset / fs, offset / fs, color="#9467bd", alpha=0.30, label=lbl)
+    ax1.set_ylabel("Speaker amplitude")
+    ax1.set_title(f"{title} - Speaker")
+    ax1.legend(loc="upper right")
+    ax1.grid(True, alpha=0.25)
+
+    ax2.plot(listener_time, listener_signal, color="#1f77b4", linewidth=1, label="Listener HEOG")
+    for idx, (onset, _, offset) in enumerate(listener_saccades):
+        lbl = "Saccade" if idx == 0 else None
+        ax2.axvspan(onset / fs, offset / fs, color="#d62728", alpha=0.28, label=lbl)
+    for idx, (onset, offset) in enumerate(listener_blinks):
+        lbl = "Blink" if idx == 0 else None
+        ax2.axvspan(onset / fs, offset / fs, color="#9467bd", alpha=0.30, label=lbl)
+    ax2.set_ylabel("Listener amplitude")
+    ax2.set_xlabel("Time from story onset [s]")
+    ax2.set_title(f"{title} - Listener")
+    ax2.legend(loc="upper right")
+    ax2.grid(True, alpha=0.25)
+
+    if end_sec is not None:
+        ax1.set_xlim(start_sec, end_sec)
+    else:
+        common_end = min(
+            reader_time[-1] if len(reader_time) else 0,
+            listener_time[-1] if len(listener_time) else 0,
+        )
+        ax1.set_xlim(start_sec, common_end)
+
+    plt.tight_layout()
+    if savepath:
+        fig.savefig(savepath, dpi=300, bbox_inches="tight")
+    if show:
+        plt.show()
+    return fig
+
+
+def plot_event_raster(
+    reader_saccades,
+    listener_saccades,
+    fs,
+    title="Saccade Event Raster",
+    start_sec=0,
+    end_sec=None,
+    savepath=None,
+    show=True,
+):
+    fig, ax = plt.subplots(figsize=(16, 3))
+
+    for onset, _, offset in reader_saccades:
+        ax.axvspan(onset / fs, offset / fs, color="#d62728", alpha=0.35)
+
+    for onset, _, offset in listener_saccades:
+        ax.axvspan(onset / fs, offset / fs, color="#1f77b4", alpha=0.25)
+
+    ax.set_yticks([0.35, 0.75])
+    ax.set_yticklabels(["Listener", "Reader"])
+    ax.set_xlabel("Time [s]")
+    ax.set_title(title)
+
+    if end_sec is not None:
+        ax.set_xlim(start_sec, end_sec)
+    else:
+        last_event = 0.0
+        if reader_saccades:
+            last_event = max(last_event, max(offset for _, _, offset in reader_saccades) / fs)
+        if listener_saccades:
+            last_event = max(last_event, max(offset for _, _, offset in listener_saccades) / fs)
+        ax.set_xlim(start_sec, last_event)
+
+    plt.tight_layout()
+    if savepath:
+        fig.savefig(savepath, dpi=300, bbox_inches="tight")
+    if show:
+        plt.show()
+    return fig
 
 def plot_saccade_direction_bar(results_engbert, story_id, title=None, savepath=None):
     ev = results_engbert[story_id]
-    saccades = ev.get("saccades_no_blinks") or ev.get("saccades") or []
+    if "saccades_no_blinks" in ev:
+        saccades = ev["saccades_no_blinks"]
+    else:
+        saccades = ev.get("saccades", [])
     h_vel = ev.get("h_vel")
     v_vel = ev.get("v_vel")
 
@@ -53,7 +160,7 @@ def plot_saccades_trace(h_sig, saccades, fs, title="Saccades Trace", start_sec=0
     plt.plot(time, h_sig, label='HEOG Signal', color='black', linewidth=1)
     
     for idx, (onset, _, offset) in enumerate(saccades):
-        lbl = 'Detected Saccade' if idx == 0 else None
+        lbl = 'Retained saccade' if idx == 0 else None
         plt.axvspan(onset / fs, offset / fs, color='red', alpha=0.3, label=lbl)
         
     plt.xlabel('Time [s]')
@@ -77,7 +184,7 @@ def plot_pipeline_validation(h_sig, v_sig, saccades, blinks, fs, title="Pipeline
         ax1.axvspan(onset / fs, offset / fs, color='red', alpha=0.3, label=lbl)
     
     ax1.set_ylabel('HEOG Amplitude')
-    ax1.set_title(f"{title} - Horizontal Movements")
+    ax1.set_title(f"{title} - HEOG with retained saccade events")
     ax1.legend(loc='upper right')
     ax1.grid(True, alpha=0.3)
     
@@ -97,28 +204,54 @@ def plot_pipeline_validation(h_sig, v_sig, saccades, blinks, fs, title="Pipeline
         
     plt.tight_layout()
     plt.show()
-    
+
+
+def _iter_story_ids(results_engbert, downsampled_EOG_like):
+    return [
+        story_id
+        for story_id in results_engbert
+        if story_id in downsampled_EOG_like
+    ]
+
+
 def make_all_figures(results_engbert, downsampled_EOG_like, fs_down):
-    plot_saccade_direction_bar(results_engbert, "PB_Reading_14.png_1", 
-                               title="Saccade directions - Reading 14 (Participant B)",
-                               savepath="fig_saccades_reading14_PB.png")
+    for story_id in _iter_story_ids(results_engbert, downsampled_EOG_like):
+        plot_saccade_direction_bar(
+            results_engbert,
+            story_id,
+            title=f"Saccade directions - {story_id}",
+            savepath=None,
+        )
+        plt.show()
 
-    plot_saccade_direction_bar(results_engbert, "PA_Reading_13.png_2", 
-                               title="Saccade directions - Reading 13 (Participant A)",
-                               savepath="fig_saccades_reading13_PA.png")
+    for story_id in _iter_story_ids(results_engbert, downsampled_EOG_like):
+        plot_blinks_trace(
+            downsampled_EOG_like,
+            results_engbert,
+            story_id,
+            fs_down,
+            title=f"VEOG signal with detected blinks - {story_id}",
+            savepath=None,
+        )
+        plt.show()
 
-    plot_blinks_trace(downsampled_EOG_like, results_engbert, "PB_Reading_1.png_1", fs_down,
-                      title="VEOG signal with detected blinks - Reading 1 (Participant B)",
-                      savepath="fig_blinks_reading1_PB.png")
-    plt.show()
-    
 def run_diagnostics(results_engbert, downsampled_EOG_like, fs_down):
-    story_id = 'PA_Reading_2.png_4' 
-    if story_id in downsampled_EOG_like and story_id in results_engbert:
-        h_sig = results_engbert[story_id].get("h_eog_used",downsampled_EOG_like[story_id]["h_eog_lf"])
-        v_sig = downsampled_EOG_like[story_id]['v_eog_blink']
+    for story_id in _iter_story_ids(results_engbert, downsampled_EOG_like):
+        h_sig = results_engbert[story_id].get("h_eog_used", downsampled_EOG_like[story_id]["h_eog_lf"])
         saccades = results_engbert[story_id].get("saccades_no_blinks", [])
-        blinks = results_engbert[story_id].get("blinks", [])
-        
+
         plot_saccades_trace(h_sig, saccades, fs_down, title=f"Saccades Trace - {story_id}")
-        plot_pipeline_validation(h_sig, v_sig, saccades, blinks, fs_down, title=f"Pipeline Validation - {story_id}")
+
+    for story_id in _iter_story_ids(results_engbert, downsampled_EOG_like):
+        h_sig = results_engbert[story_id].get("h_eog_used", downsampled_EOG_like[story_id]["h_eog_lf"])
+        v_sig = downsampled_EOG_like[story_id]["v_eog_blink"]
+        blinks = results_engbert[story_id].get("blinks", [])
+
+        plot_pipeline_validation(
+            h_sig,
+            v_sig,
+            results_engbert[story_id].get("saccades_no_blinks", []),
+            blinks,
+            fs_down,
+            title=f"Pipeline Validation - {story_id}",
+        )
