@@ -1,7 +1,6 @@
 import os
 import sys
 import argparse
-
 import numpy as np
 
 project_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -12,22 +11,12 @@ sys.path.append(project_dir)
 sys.path.append(code_dir)
 sys.stdout.reconfigure(encoding='utf-8')
 
+from config import FREQ, FS_DOWN, CHANNELS, ENGBERT_PARAMS
 from filtering import load_pkl_file, downsample_signal, lowpass_filter
-from differentiation import differentiate
+from becerra_code.src.shared.differentiation import differentiate
 from saccade_detection import (detect_saccades_engbert_2d,detect_blinks,remove_saccades_overlapping_blinks,pick_best_heog)
 from extract_listening_data import save_listening_data
-from results_plots_review import plot_reader_listener_overlay
-
-
-freq = 4000
-fs_down = 500
-
-channels = {
-    'v_eog_up': 13,
-    'v_eog_down': 9,
-    'h_eog_right': 11,
-    'ref_l': 15,
-    'ref_r': 14,}
+from results_plots import plot_reader_listener_overlay
 
 
 def _valid_listener_data(path, expected_story_ids):
@@ -42,7 +31,7 @@ def _valid_listener_data(path, expected_story_ids):
         return False
     return all(
         np.asarray(data[story_id].data).ndim == 2
-        and np.asarray(data[story_id].data).shape[0] > max(channels.values())
+        and np.asarray(data[story_id].data).shape[0] > max(CHANNELS.values())
         and np.asarray(data[story_id].data).shape[1] > 0
         for story_id in expected_story_ids)
 
@@ -82,13 +71,13 @@ def build_eog_views(chunk_dict):
 
     for story_id, chunk in chunk_dict.items():
         chunk_data = np.asarray(chunk.data)
-        if chunk_data.ndim != 2 or chunk_data.shape[0] <= max(channels.values()) or chunk_data.shape[1] == 0:
+        if chunk_data.ndim != 2 or chunk_data.shape[0] <= max(CHANNELS.values()) or chunk_data.shape[1] == 0:
             raise ValueError(f'{story_id}: invalid EOG chunk shape {chunk_data.shape}')
-        story_signals = {ch: chunk_data[ch] for ch in channels.values()}
+        story_signals = {ch: chunk_data[ch] for ch in CHANNELS.values()}
 
-        v_eog = story_signals[channels['v_eog_up']] - story_signals[channels['v_eog_down']]
-        h_eog_lf = story_signals[channels['h_eog_right']] - story_signals[channels['ref_l']]
-        h_eog_rf = story_signals[channels['h_eog_right']] - story_signals[channels['ref_r']]
+        v_eog = story_signals[CHANNELS['v_eog_up']] - story_signals[CHANNELS['v_eog_down']]
+        h_eog_lf = story_signals[CHANNELS['h_eog_right']] - story_signals[CHANNELS['ref_l']]
+        h_eog_rf = story_signals[CHANNELS['h_eog_right']] - story_signals[CHANNELS['ref_r']]
 
         pseudo = {
             'v_eog_saccade': v_eog,
@@ -100,18 +89,18 @@ def build_eog_views(chunk_dict):
         filtered = {}
         for eog_type, signal_data in pseudo.items():
             cutoff = 15 if 'v_eog_blink' in eog_type else 25
-            filtered[eog_type] = lowpass_filter(signal_data, fs=freq, cutoff=cutoff, order=4)
+            filtered[eog_type] = lowpass_filter(signal_data, fs=FREQ, cutoff=cutoff, order=4)
 
-        downsampled = {name: downsample_signal(sig, freq, fs_down) for name, sig in filtered.items()}
+        downsampled = {name: downsample_signal(sig, FREQ, FS_DOWN) for name, sig in filtered.items()}
 
         h_eog_raw = downsampled.get('h_eog_lf')
         h_eog_alt = downsampled.get('h_eog_rf')
         if h_eog_raw is not None and h_eog_alt is not None:
-            h_eog = pick_best_heog(h_eog_raw, h_eog_alt, fs_down)
+            h_eog = pick_best_heog(h_eog_raw, h_eog_alt, FS_DOWN)
         else:
             h_eog = h_eog_raw
 
-        time_step = 1.0 / fs_down
+        time_step = 1.0 / FS_DOWN
         v_eog_sac = downsampled.get('v_eog_saccade')
         v_eog_blink = downsampled.get('v_eog_blink')
 
@@ -131,23 +120,16 @@ def build_eog_views(chunk_dict):
             saccades = detect_saccades_engbert_2d(
                 h_vel,
                 v_vel,
-                fs=fs_down,
-                eta_h=6,
-                eta_v=11,
-                smooth_win=15,
-                min_samples=10,
-                max_ms=150,
-                refractory_ms=15,
-                use_hysteresis=False,
-                edge_frac=0.3,
+                fs=FS_DOWN,
+                **ENGBERT_PARAMS
             )
             result.update({'saccades': saccades, 'h_vel': h_vel, 'v_vel': v_vel})
 
             if v_eog_blink is not None:
                 v_blink_diff = differentiate(v_eog_blink.astype(np.float64), step=time_step, method='l11')
-                blinks = detect_blinks(v_eog_blink.astype(float), v_blink_diff.astype(float), fs_down)
+                blinks = detect_blinks(v_eog_blink.astype(float), v_blink_diff.astype(float), fs=FS_DOWN)
                 result['blinks'] = blinks
-                result['saccades_no_blinks'] = remove_saccades_overlapping_blinks(saccades, blinks, fs=fs_down)
+                result['saccades_no_blinks'] = remove_saccades_overlapping_blinks(saccades, blinks, fs=FS_DOWN)
             else:
                 result['blinks'] = []
                 result['saccades_no_blinks'] = saccades
@@ -202,7 +184,7 @@ def main(output_dir=None, show_plots=True, selected_story=None):
         reader_blinks = reader_story.get('blinks', [])
         listener_blinks = listener_story.get('blinks', [])
 
-        mean_lag, std_lag = event_lag_score(reader_saccades, listener_saccades, fs_down)
+        mean_lag, std_lag = event_lag_score(reader_saccades, listener_saccades, fs=FS_DOWN)
         print(
             f'{reader_participant}:{reader_key} -> {listener_participant}:{listener_key} | '
             f'reader_saccades={len(reader_saccades)} listener_saccades={len(listener_saccades)} | '
@@ -220,7 +202,7 @@ def main(output_dir=None, show_plots=True, selected_story=None):
             listener_story['h_eog_used'],
             reader_saccades,
             listener_saccades,
-            fs_down,
+            FS_DOWN,
             title=title,
             reader_blinks=reader_blinks,
             listener_blinks=listener_blinks,
