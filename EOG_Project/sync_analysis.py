@@ -6,6 +6,7 @@ import numpy as np
 project_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 code_dir = os.path.join(project_dir, 'emg_data_analysis')
 data_dir = os.path.join(os.path.dirname(__file__), 'data')
+reading_data_dir = os.path.join(project_dir, 'data')
 
 sys.path.append(project_dir)
 sys.path.append(code_dir)
@@ -40,9 +41,9 @@ def load_pair_data():
     listening_a_path = os.path.join(data_dir, 'participant_A_listening_EOG.pkl')
     listening_b_path = os.path.join(data_dir, 'participant_B_listening_EOG.pkl')
 
-    reading = {'A': load_pkl_file(os.path.join(data_dir, 'participant_A_readings_EOG.pkl')),
-                'B': load_pkl_file(os.path.join(data_dir, 'participant_B_readings_EOG.pkl')),}
-
+    reading = {
+        'A': load_pkl_file(os.path.join(reading_data_dir, 'participant_A_readings_EOG.pkl')),
+        'B': load_pkl_file(os.path.join(reading_data_dir, 'participant_B_readings_EOG.pkl'))}
     expected_a = set(reading['B'])
     expected_b = set(reading['A'])
     if not _valid_listener_data(listening_a_path, expected_a) or not _valid_listener_data(listening_b_path, expected_b):
@@ -138,25 +139,97 @@ def build_eog_views(chunk_dict):
 
     return outputs
 
-
-def event_lag_score(reader_saccades, listener_saccades, fs, max_lag_sec=3.0):
-    if not reader_saccades or not listener_saccades:
-        return None, None
-
-    reader_onsets = np.array([onset for onset, _, _ in reader_saccades], dtype=float) / fs
-    listener_onsets = np.array([onset for onset, _, _ in listener_saccades], dtype=float) / fs
-
+def event_lag_score(
+    reader_saccades,
+    listener_saccades,
+    fs,
+    max_lag_sec=3.0,
+    return_lags=False,
+):
     lags = []
-    for reader_time in reader_onsets:
-        best = listener_onsets[np.argmin(np.abs(listener_onsets - reader_time))]
-        lag = best - reader_time
-        if abs(lag) <= max_lag_sec:
-            lags.append(lag)
 
-    if not lags:
-        return None, None
+    if len(reader_saccades) > 0 and len(listener_saccades) > 0:
+        reader_onsets = np.array(
+            [onset for onset, _, _ in reader_saccades],
+            dtype=float,
+        ) / fs
 
-    return float(np.mean(lags)), float(np.std(lags))
+        listener_onsets = np.array(
+            [onset for onset, _, _ in listener_saccades],
+            dtype=float,
+        ) / fs
+
+        for reader_time in reader_onsets:
+            nearest_index = np.argmin(
+                np.abs(listener_onsets - reader_time)
+            )
+            lag = listener_onsets[nearest_index] - reader_time
+
+            if abs(lag) <= max_lag_sec:
+                lags.append(lag)
+
+    lags = np.asarray(lags, dtype=float)
+
+    mean_lag = float(np.mean(lags)) if lags.size else None
+    std_lag = float(np.std(lags)) if lags.size else None
+
+    if return_lags:
+        return mean_lag, std_lag, lags
+
+    return mean_lag, std_lag
+
+def plot_lag_distributions(lag_rows, output_dir, show=True):
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots(
+        figsize=(9, max(3, 0.65 * len(lag_rows) + 1.5))
+    )
+    rng = np.random.default_rng(0)
+
+    labels = []
+
+    for row_index, (label, lags, total_reader) in enumerate(lag_rows):
+        # Small vertical offsets separate overlapping points visually.
+        y = row_index + rng.uniform(-0.16, 0.16, size=len(lags))
+
+        ax.scatter(
+            lags,
+            y,
+            s=24,
+            alpha=0.65,
+            color="steelblue",
+            edgecolors="none",
+        )
+
+        labels.append(
+            f"{label}   ({len(lags)}/{total_reader} matched)"
+        )
+
+    ax.axvline(0, color="black", linestyle="--", linewidth=1)
+    ax.set_xlim(-3.05, 3.05)
+    ax.set_yticks(range(len(labels)))
+    ax.set_yticklabels(labels)
+    ax.invert_yaxis()
+
+    ax.set_xlabel("Listener onset − reader onset (s)")
+    ax.set_title("Reader–listener event-lag distributions")
+    ax.grid(axis="x", alpha=0.2)
+    ax.set_axisbelow(True)
+
+    fig.tight_layout()
+
+    savepath = os.path.join(
+        output_dir, "reader_listener_lag_distributions.png"
+    )
+    fig.savefig(savepath, dpi=300, bbox_inches="tight")
+    print(f"Saved lag-distribution figure to {savepath}")
+
+    if show:
+        plt.show()
+    else:
+        plt.close(fig)
+
+    return savepath
 
 
 def _safe_filename(value):
@@ -174,7 +247,8 @@ def main(output_dir=None, show_plots=True, selected_story=None):
     output_dir = output_dir or os.path.join(os.path.dirname(__file__), 'sync_figures')
     os.makedirs(output_dir, exist_ok=True)
     saved_figures = []
-
+    lag_rows = []
+    
     for reader_participant, reader_key, listener_participant, listener_key in pairs:
         reader_story = build_eog_views({reader_key: reading[reader_participant][reader_key]})[reader_key]
         listener_story = build_eog_views({listener_key: listening[listener_participant][listener_key]})[listener_key]
@@ -184,7 +258,26 @@ def main(output_dir=None, show_plots=True, selected_story=None):
         reader_blinks = reader_story.get('blinks', [])
         listener_blinks = listener_story.get('blinks', [])
 
-        mean_lag, std_lag = event_lag_score(reader_saccades, listener_saccades, fs=FS_DOWN)
+        mean_lag, std_lag, lags = event_lag_score(
+            reader_saccades,
+            listener_saccades,
+            fs=FS_DOWN,
+            return_lags=True,
+        )
+        story_label = reader_key.split(".png")[0]
+
+        lag_rows.append(
+            (
+                f"{reader_participant}–{story_label}",
+                lags,
+                len(reader_saccades),
+            )
+        )
+
+        print(
+            f"{reader_participant}:{reader_key} | "
+            f"matched_reader_events={len(lags)}/{len(reader_saccades)}"
+        )
         print(
             f'{reader_participant}:{reader_key} -> {listener_participant}:{listener_key} | '
             f'reader_saccades={len(reader_saccades)} listener_saccades={len(listener_saccades)} | '
@@ -212,10 +305,20 @@ def main(output_dir=None, show_plots=True, selected_story=None):
         if not show_plots:
             import matplotlib.pyplot as plt
             plt.close(fig)
-        saved_figures.append(savepath)
 
-    print(f'Saved {len(saved_figures)} synchronization figures to {output_dir}')
+        saved_figures.append(savepath)
+    lag_savepath = plot_lag_distributions(
+        lag_rows,
+        output_dir,
+        show=show_plots,
+    )
+    saved_figures.append(lag_savepath)
+
+    print(
+        f"Saved {len(saved_figures)} figures to {output_dir}"
+    )
     return saved_figures
+        
 
 
 if __name__ == '__main__':

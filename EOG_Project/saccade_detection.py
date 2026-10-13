@@ -1,6 +1,5 @@
 import numpy as np
 
-from config import FREQ, FS_DOWN, CHANNELS, ENGBERT_PARAMS
 from becerra_code.src.shared.differentiation import differentiate
 
 def smooth_ma(x, win=5):
@@ -163,15 +162,8 @@ def detect_blinks(v_sig, v_diff, fs=500):
     v_signal_abs = np.abs(v_sig)
     v_diff_abs = np.abs(v_diff)
 
-    blink_amp_threshold = max(
-        calculate_lse_threshold(v_signal_abs),
-        get_fallback_threshold(v_signal_abs, k=5.0)
-    )
-
-    blink_diff_threshold = max(
-        calculate_lse_threshold(v_diff_abs),
-        get_fallback_threshold(v_diff_abs, k=4.0)
-    )
+    blink_amp_threshold = max(calculate_lse_threshold(v_signal_abs),get_fallback_threshold(v_signal_abs, k=5.0))
+    blink_diff_threshold = max(calculate_lse_threshold(v_diff_abs),get_fallback_threshold(v_diff_abs, k=4.0))
     
     # Get blink candidates based on vertical velocity
     diff_peaks = get_local_maxima(v_diff_abs)
@@ -206,7 +198,7 @@ def detect_blinks(v_sig, v_diff, fs=500):
         if peak_amp <= blink_amp_threshold:
             continue
             
-        # 2. Find overall blink boundaries (10% of local peak amplitude)
+        # Find overall blink boundaries (10% of local peak amplitude)
         bound = 0.10 * peak_amp
         
         onset = actual_peak
@@ -221,13 +213,10 @@ def detect_blinks(v_sig, v_diff, fs=500):
         if (blink_dur < min_blink_samples) or (blink_dur > max_blink_samples):
             continue
             
-        # 3. Verify morphology: check for velocity sign change (zero crossing) characteristic of blinks
-        velocity_window = v_diff[onset : offset + 1]
-        if len(velocity_window) > 0:
-            sign_change = np.any(np.sign(velocity_window[:-1]) * np.sign(velocity_window[1:]) < 0)
-            morphology_valid = sign_change
-        else:
-            morphology_valid = False
+        # Verify morphology: check for velocity sign change (zero crossing) characteristic of blinks
+        velocity_window = v_diff[onset:offset + 1]
+        morphology_valid = (np.any(velocity_window > 0)
+            and np.any(velocity_window < 0))
 
         if morphology_valid:
             blinks.append([onset, offset])

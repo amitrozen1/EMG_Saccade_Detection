@@ -16,7 +16,7 @@ from saccade_detection import (detect_saccades_engbert_2d, classify_direction_by
     remove_saccades_overlapping_blinks, pick_best_heog)
 from becerra_code.src.shared.differentiation import differentiate
 from results_plots import make_all_figures, run_diagnostics, plot_pipeline_validation
-from results_summary import print_results_table, print_saccade_sequence
+from results_summary import print_results_table
 
 data_A = load_pkl_file(os.path.join(data_dir, "participant_A_readings_EOG.pkl"))
 data_B = load_pkl_file(os.path.join(data_dir, "participant_B_readings_EOG.pkl"))
@@ -93,7 +93,10 @@ for full_id, signals in downsampled_EOG_like.items():
             else:
                 obl_saccades += 1
         
-        results_engbert[full_id]["dir_counts"] = {"H": h_saccades, "V": v_saccades, "OBL": obl_saccades}
+        results_engbert[full_id]["dir_counts_before_blink_exclusion"] = {
+            "H": h_saccades,
+            "V": v_saccades,
+            "OBL": obl_saccades}
         print(f"{full_id} - Saccades (Engbert 2D): Total={len(saccades)}, H={h_saccades}, V={v_saccades}, OBL={obl_saccades}")
     
     # Detect blinks    
@@ -118,6 +121,6 @@ print("\nANALYSIS COMPLETE \n")
 
 #make_all_figures(results_engbert, downsampled_EOG_like, FS_DOWN)
 
-#run_diagnostics(results_engbert, downsampled_EOG_like, FS_DOWN)
+run_diagnostics(results_engbert, downsampled_EOG_like, FS_DOWN)
 #print_saccade_sequence(results_engbert, "PA_Reading_13.png_2")
 #print_saccade_sequence(results_engbert, "PB_Reading_14.png_1")

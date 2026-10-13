@@ -1,26 +1,43 @@
 import numpy as np
 from saccade_detection import classify_direction_by_angle
 
-def print_results_table(results_engbert, downsampled_EOG_like):
-    print("Story\tHorizontal\tVertical\tOblique\tTotal\tBlinks")
+def print_results_table(results_engbert, downsampled_EOG_like, fs):
+    print(
+        "Story\tDuration_s\tHorizontal\tVertical\tOblique"
+        "\tTotal\tBlinks\tRetained_events_per_min"
+    )
 
     for story_id, events in results_engbert.items():
-        saccades = events["saccades_no_blinks"] if "saccades_no_blinks" in events else events.get("saccades", [])
+        saccades = events.get(
+            "saccades_no_blinks", events.get("saccades", [])
+        )
         blinks = events.get("blinks", [])
-        h_vel = events.get("h_vel", None)
-        v_vel = events.get("v_vel", None)
+        h_vel = events.get("h_vel")
+        v_vel = events.get("v_vel")
 
-        h_cnt = v_cnt = o_cnt = 0
+        signal = downsampled_EOG_like[story_id]["v_eog_saccade"]
+        duration_sec = len(signal) / fs
+        event_rate = (
+            len(saccades) * 60 / duration_sec
+            if duration_sec > 0 else np.nan
+        )
+
+        counts = {"H": 0, "V": 0, "OBL": 0}
 
         if h_vel is not None and v_vel is not None:
-            for onset, pk, offset in saccades:
-                label = classify_direction_by_angle(h_vel, v_vel, onset, offset)
-                if label == "H": h_cnt += 1
-                elif label == "V": v_cnt += 1
-                else: o_cnt += 1
+            for onset, _, offset in saccades:
+                label = classify_direction_by_angle(
+                    h_vel, v_vel, onset, offset
+                )
+                category = label if label in ("H", "V") else "OBL"
+                counts[category] += 1
 
-        print(f"{story_id}\t{h_cnt}\t{v_cnt}\t{o_cnt}\t{len(saccades)}\t{len(blinks)}")
-      
+        print(
+            f"{story_id}\t{duration_sec:.2f}\t"
+            f"{counts['H']}\t{counts['V']}\t{counts['OBL']}\t"
+            f"{len(saccades)}\t{len(blinks)}\t{event_rate:.2f}"
+        )
+              
 def print_saccade_sequence(
     results_engbert, story_id, num_events=None, fs=None
 ):

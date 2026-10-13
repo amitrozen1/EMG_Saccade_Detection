@@ -79,12 +79,25 @@ def plot_event_raster(
     fig, ax = plt.subplots(figsize=(16, 3))
 
     for onset, _, offset in reader_saccades:
-        ax.axvspan(onset / fs, offset / fs, color="#d62728", alpha=0.35)
+        ax.axvspan(
+            onset / fs,
+            offset / fs,
+            ymin=0.60,
+            ymax=0.90,
+            color="#d62728",
+            alpha=0.35)
 
     for onset, _, offset in listener_saccades:
-        ax.axvspan(onset / fs, offset / fs, color="#1f77b4", alpha=0.25)
+        ax.axvspan(
+            onset / fs,
+            offset / fs,
+            ymin=0.10,
+            ymax=0.40,
+            color="#1f77b4",
+            alpha=0.35)
 
-    ax.set_yticks([0.35, 0.75])
+    ax.set_ylim(0, 1)
+    ax.set_yticks([0.25, 0.75])
     ax.set_yticklabels(["Listener", "Reader"])
     ax.set_xlabel("Time [s]")
     ax.set_title(title)
@@ -173,14 +186,14 @@ def plot_saccades_trace(h_sig, saccades, fs, title="Saccades Trace", start_sec=0
     plt.tight_layout()
     plt.show()
 
-def plot_pipeline_validation(h_sig, v_sig, saccades, blinks, fs, title="Pipeline Validation", start_sec=0, end_sec=None):
+def plot_pipeline_validation(h_sig, v_sig, saccades, blinks, fs, title="Detection Output", start_sec=0, end_sec=None):
     time = np.arange(len(h_sig)) / fs
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(15, 8), sharex=True)
     
     # HEOG
     ax1.plot(time, h_sig, color='black', linewidth=1, label='HEOG Signal')
     for idx, (onset, _, offset) in enumerate(saccades):
-        lbl = 'Detected Saccade' if idx == 0 else None
+        lbl = 'Retained saccade' if idx == 0 else None
         ax1.axvspan(onset / fs, offset / fs, color='red', alpha=0.3, label=lbl)
     
     ax1.set_ylabel('HEOG Amplitude')
@@ -253,5 +266,5 @@ def run_diagnostics(results_engbert, downsampled_EOG_like, fs_down):
             results_engbert[story_id].get("saccades_no_blinks", []),
             blinks,
             fs_down,
-            title=f"Pipeline Validation - {story_id}",
+            title=f"Detection Output - {story_id}",
         )
